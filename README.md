@@ -23,13 +23,18 @@ The fastest way to run GYST end-to-end is the bundled Dockerfile:
 
 ```bash
 cd docker
+# REQUIRED if you'll visit the page from anything other than the
+# docker host itself. Bake the public URL into the JS bundle:
+export GYST_PUBLIC_ORIGIN="https://your-host.example.com:10443"
 docker compose up -d --build
 # wait ~90s for Reflex to compile, then:
-open https://localhost:10443/
+open "$GYST_PUBLIC_ORIGIN/"
 ```
 
 The container ships its own Caddy (TLS, security headers, cache-control) and a single Reflex/Granian backend. SQLite DBs and photos live in the `gyst-docker-data` named volume.
 
+> **Important**: `GYST_PUBLIC_ORIGIN` is compiled into the frontend bundle. If you don't set it to the exact URL users will visit, the page loads but the splash screen stays forever (the WebSocket can't connect). Default is `https://localhost:10443` which only works on the docker host itself. To change it later, edit `docker-compose.yml` or the env, then `docker compose down && docker compose up -d` (recreate forces a recompile).
+>
 > The first visit shows a TLS warning because the container mints certs from its own internal CA. Accept once and the browser remembers.
 >
 > If you're running on a host that already runs Caddy with `tls internal`, the compose file optionally bind-mounts the host's CA so certs chain to a trusted root. See `docker/docker-compose.yml`.

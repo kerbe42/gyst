@@ -20,6 +20,22 @@ services:
     image: gyst:latest
     container_name: gyst
     restart: unless-stopped
+    environment:
+      # REQUIRED. The exact URL users will type in their browser. This
+      # value gets compiled into the frontend bundle as the WebSocket
+      # and API target, so it must match the public-facing origin —
+      # otherwise the page loads but the WS upgrade silently fails and
+      # the splash screen stays forever.
+      #
+      # Examples:
+      #   single-host LAN access:  https://my-server.local:10443
+      #   docker on your laptop:   https://localhost:10443
+      #   reverse-proxied subdom:  https://gyst.example.com
+      #
+      # Override per-environment via an .env file with GYST_PUBLIC_ORIGIN=
+      # or set inline. Recreate the container after changing this — the
+      # frontend recompiles on first boot using the new value.
+      GYST_PUBLIC_ORIGIN: "${GYST_PUBLIC_ORIGIN:-https://localhost:10443}"
     ports:
       # HTTPS, self-signed via the container's own Caddy CA.
       # First visit: accept the browser TLS warning once.

@@ -57,8 +57,14 @@ ENV HOME=/app/data \
     REFLEX_DIR=/app/data/reflex \
     XDG_DATA_HOME=/app/data/caddy-data \
     XDG_CONFIG_HOME=/app/data/caddy-config \
-    GYST_PUBLIC_ORIGIN=https://localhost:10443 \
     PYTHONPATH=/app:/app/house_demo
+# GYST_PUBLIC_ORIGIN is intentionally NOT set here — it gets compiled
+# into the frontend JS bundle as the WebSocket / API target, and a
+# baked-in default like https://localhost:10443 only works for users
+# who visit the page on the docker host itself. Everyone hitting it
+# from another machine would see the page stay stuck on the splash
+# (the WS upgrade can't reach "localhost" from their browser).
+# Set it explicitly in docker-compose.yml to the URL users will type.
 
 # ---- Caddy + entrypoint ----------------------------------------------------
 COPY docker/Caddyfile /etc/caddy/Caddyfile
