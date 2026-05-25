@@ -131,7 +131,11 @@ Same content as Python source: see `house_demo/house_demo/pages.py` → `help_pa
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Use it, fork it, run a copy for your own household, embed pieces in your own project. No warranty.
+**PolyForm Noncommercial 1.0.0** — see [LICENSE](LICENSE).
+
+You can run it for your own household, study it, modify it, fork it, share it with friends, use it in a charity / school / research project. You **cannot** sell it, charge for hosting it, embed it in a commercial product, or use it to make money. No warranty.
+
+If you want a commercial license, open an issue.
 
 ---
 
