@@ -1,0 +1,75 @@
+# Build context exclusions — what NOT to send into the Docker image.
+
+# Git / SCM
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# The docker/ subdir itself — the Dockerfile only needs Caddyfile and
+# entrypoint.sh out of it, and those are COPY'd explicitly with the
+# `docker/` prefix. Excluding the dir avoids dragging the compose file
+# and the .dockerignore-relative copy in.
+# (Not excluded entirely because the Dockerfile COPY references it.)
+
+# Python virtualenvs / caches
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Reflex / Node build artifacts
+.web/
+.local/
+.cache/
+.bun/
+node_modules/
+
+# SQLite — never bake user DBs into the image
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# User-uploaded content
+photos/
+shared/
+uploads/
+data/photos/
+data/chore_photos/
+data/shared/
+data/uploads/
+data/*.db*
+data/tls/
+data/.bun/
+data/.local/
+data/.cache/
+data/reflex/
+data/caddy-data/
+data/caddy-config/
+
+# Secrets
+.env
+.env.*
+secrets*
+*.pem
+*.key
+
+# Backups, logs, editor cruft
+*.bak
+*.bak.*
+*.tgz
+*.tar.gz
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

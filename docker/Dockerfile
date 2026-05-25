@@ -1,7 +1,10 @@
-# GYST containerized — isolated copy of the prod app, listening on :10443
-# with its own self-signed Caddy cert. Independent SQLite DBs in the
-# `gyst-docker-data` volume; does not share state with host gyst-prod
-# or gyst-dev.
+# GYST containerized — single-container deploy of the full app, listening
+# on :10443 with its own self-signed Caddy cert. SQLite DBs + photos live
+# in the `gyst-docker-data` named volume.
+#
+# Build context is the REPO ROOT (one level up). The compose file in this
+# directory sets that up automatically:
+#     cd docker && docker compose up -d --build
 FROM python:3.12-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -12,11 +15,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # ---- System deps -----------------------------------------------------------
 # - caddy: TLS-terminating front. `tls internal` mints its own CA so the
-#   container's cert chain is independent from the host's gyst.local
-#   internal CA.
+#   container's certs are independent from any host Caddy.
 # - nodejs 22: Reflex 0.9 shells out to node during compile (rolldown).
 # - sqlite3: useful for poking at the DBs inside the container.
 # - libgl1 / libglib2.0-0: torch/torchvision wheels need these.
+# - unzip / git: Reflex installs bun on first run via a downloaded zip.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl gnupg debian-keyring debian-archive-keyring apt-transport-https \
         sqlite3 libgl1 libglib2.0-0 procps unzip git \
@@ -37,10 +40,11 @@ RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu \
     && pip install -r /app/requirements.txt
 
 # ---- App code --------------------------------------------------------------
-# The build context provides /opt/gyst-prod under src/. Copy verbatim;
-# rxconfig in the prod tree already binds Reflex to 127.0.0.1:3002 which
-# matches our internal Caddy upstream.
-COPY src/ /app/
+# Build context is the repo root; .dockerignore strips `docker/`, `.git`,
+# venvs, build artifacts, and any committed user data. Everything else
+# lands at /app verbatim. rxconfig binds Reflex to 127.0.0.1:3002 which
+# matches the internal Caddy upstream.
+COPY . /app/
 
 # /app/data is anchored by config.py (DATA_DIR = _PROJECT_ROOT / "data"),
 # so every SQLite DB + the photos store lands here. Declared as a volume
@@ -57,8 +61,8 @@ ENV HOME=/app/data \
     PYTHONPATH=/app:/app/house_demo
 
 # ---- Caddy + entrypoint ----------------------------------------------------
-COPY Caddyfile /etc/caddy/Caddyfile
-COPY entrypoint.sh /entrypoint.sh
+COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 10443

@@ -1,36 +1,47 @@
-# GYST dockerized — isolated copy of the prod app on :10443.
-# Does not share data with host gyst-prod / gyst-dev.
+# GYST containerized — one-command deploy of the full app on :10443.
 #
-#   sudo docker compose up -d        # start (rebuilds if Dockerfile changed)
-#   sudo docker compose logs -f      # live tail
-#   sudo docker compose restart      # restart without rebuild
-#   sudo docker compose down         # stop + remove container (volume kept)
-#   sudo docker compose build        # explicit rebuild
-#   sudo docker compose down -v      # ALSO drop the data volume (fresh DBs)
+# From the docker/ directory:
+#     docker compose up -d --build        # first time / after code change
+#     docker compose logs -f              # live tail
+#     docker compose restart              # restart, no rebuild
+#     docker compose down                 # stop (keeps data volume)
+#     docker compose down -v              # ALSO drop the data volume
+#
+# Or from anywhere, pointing at this file:
+#     docker compose -f /path/to/docker/docker-compose.yml up -d --build
 services:
   gyst:
-    build: .
-    image: gyst:docker
-    container_name: gyst-docker
+    build:
+      # Build context is the REPO ROOT — that's where requirements.txt
+      # and the app source live. Dockerfile copies the source in via
+      # `COPY . /app/`; .dockerignore strips what doesn't belong.
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: gyst:latest
+    container_name: gyst
     restart: unless-stopped
     ports:
-      # Listens on the host's :10443 (HTTPS, self-signed via Caddy
-      # `tls internal`). Host's :443 (prod) and :8443 (dev) untouched.
+      # HTTPS, self-signed via the container's own Caddy CA.
+      # First visit: accept the browser TLS warning once.
       - "10443:10443"
     volumes:
-      # SQLite DBs, photos, Caddy CA + cert, Reflex compile cache.
+      # SQLite DBs, photos, Caddy CA + certs, Reflex compile cache.
+      # Survives `docker compose down`; only `down -v` drops it.
       - gyst-docker-data:/app/data
-      # Share the HOST'S internal CA so the container's cert chains to
-      # a CA the user's browser already trusts (gyst-prod + gyst-dev use
-      # this CA). Without this, Firefox throws SEC_ERROR_BAD_SIGNATURE
-      # because two different internal CAs claim the same hostname.
-      # Read-only — the container never writes to the host CA.
-      - /var/lib/caddy/.local/share/caddy/pki/authorities/local/:/host-caddy-ca/:ro
+
+      # OPTIONAL — uncomment if the host already runs Caddy with the
+      # `tls internal` PKI at this default path. The container will
+      # then mint certs that chain to the host's CA, so any browser
+      # that already trusts the host CA accepts the container cert
+      # without a warning. Read-only — the host CA is never written
+      # to by the container.
+      # - /var/lib/caddy/.local/share/caddy/pki/authorities/local/:/host-caddy-ca/:ro
     healthcheck:
       test: ["CMD", "curl", "-ksf", "https://127.0.0.1:10443/", "-o", "/dev/null"]
       interval: 30s
       timeout: 5s
       retries: 3
+      # First boot needs ~90s for Reflex to compile the frontend bundle.
       start_period: 120s
 
 volumes:
