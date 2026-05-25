@@ -42,7 +42,7 @@ RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu \
 # ---- App code --------------------------------------------------------------
 # Build context is the repo root; .dockerignore strips `docker/`, `.git`,
 # venvs, build artifacts, and any committed user data. Everything else
-# lands at /app verbatim. rxconfig binds Reflex to 127.0.0.1:3002 which
+# lands at /app verbatim. rxconfig binds Reflex to 127.0.0.1:3003 which
 # matches the internal Caddy upstream.
 COPY . /app/
 

@@ -51,7 +51,7 @@ shutdown() {
 }
 trap shutdown SIGTERM SIGINT
 
-echo "[gyst-docker] starting Reflex (prod) on :3002"
+echo "[gyst-docker] starting Reflex (prod) on :3003"
 cd /app/house_demo
 reflex run --env prod --loglevel info &
 REFLEX_PID=$!

@@ -1,6 +1,6 @@
 # Container-internal Caddy. Listens on :10443 with its own self-signed
 # CA (separate from the host's), reverse-proxies to the Reflex backend
-# on 127.0.0.1:3002 inside the container.
+# on 127.0.0.1:3003 inside the container.
 
 {
     auto_https disable_redirects
@@ -37,7 +37,7 @@ https://:10443 {
     }
     header @sw_files Cache-Control "no-cache, no-store, must-revalidate"
 
-    reverse_proxy 127.0.0.1:3002 {
+    reverse_proxy 127.0.0.1:3003 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
