@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GYST reminder dispatcher every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Unit=gyst-reminders.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

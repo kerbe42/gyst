@@ -1,0 +1,13 @@
+[Unit]
+Description=Run GYST data backup daily
+
+[Timer]
+# Daily at 03:17 server-local, with a 30-minute random delay so multi-VM
+# hosts don't stampede. Persistent so a backup still runs after downtime.
+OnCalendar=*-*-* 03:17:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=gyst-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,62 @@
+# Container-internal Caddy. Listens on :10443 with its own self-signed
+# CA (separate from the host's), reverse-proxies to the Reflex backend
+# on 127.0.0.1:3002 inside the container.
+
+{
+    auto_https disable_redirects
+    admin off
+    log {
+        level INFO
+    }
+}
+
+https://:10443 {
+    tls internal {
+        on_demand
+    }
+    encode zstd gzip
+
+    # ---- Caching mirrors the host config so the app behaves identically.
+    @fingerprinted {
+        path_regexp \.(js|css|woff2?|ttf|otf|map)$
+        path /assets/*
+    }
+    header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+
+    @pwa_static {
+        path /icons/*
+        path /manifest.webmanifest
+        path /favicon.ico
+        path /apple-touch-icon*.png
+    }
+    header @pwa_static Cache-Control "public, max-age=86400, must-revalidate"
+
+    @sw_files {
+        path /sw.js
+        path /pwa-register.js
+    }
+    header @sw_files Cache-Control "no-cache, no-store, must-revalidate"
+
+    reverse_proxy 127.0.0.1:3002 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        # CSP allows the container's own host:port pair for WS. The
+        # ws/wss host matcher is wildcard-port-aware because the
+        # container may be reached at localhost:10443 or via any
+        # external alias the operator binds.
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' wss: ws:; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        Permissions-Policy "camera=(self), microphone=(self), geolocation=(), interest-cohort=(), payment=(), usb=(), bluetooth=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+
+    @gyst_dynamic not path /assets/* /photo/* /chore_photo/* /icons/* /manifest.webmanifest /favicon.ico /apple-touch-icon* /sw.js /pwa-register.js
+    header @gyst_dynamic Cache-Control "no-store, no-cache, must-revalidate, private"
+}

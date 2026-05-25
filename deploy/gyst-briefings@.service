@@ -1,0 +1,14 @@
+[Unit]
+Description=GYST automated briefings (LLM-composed digests via push)
+After=network.target
+
+[Service]
+Type=oneshot
+User=nope
+# %i is the timer instance — "morning" or "evening" — passed by the
+# matching timer unit (gyst-briefings@morning.timer, @evening.timer).
+ExecStart=/opt/house-inventory/.venv/bin/python3 /opt/house-inventory/deploy/gyst-briefings.py --env dev --kind %i
+ExecStart=/opt/gyst-prod/.venv/bin/python3       /opt/house-inventory/deploy/gyst-briefings.py --env prod --kind %i
+
+NoNewPrivileges=true
+UMask=0077

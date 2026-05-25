@@ -1,0 +1,12 @@
+[Unit]
+Description=JARVIS proactive 'thinking' pass
+After=network.target
+
+[Service]
+Type=oneshot
+User=nope
+ExecStart=/opt/house-inventory/.venv/bin/python3 /opt/house-inventory/deploy/gyst-jarvis-think.py --env dev
+ExecStart=/opt/gyst-prod/.venv/bin/python3       /opt/house-inventory/deploy/gyst-jarvis-think.py --env prod
+
+NoNewPrivileges=true
+UMask=0077

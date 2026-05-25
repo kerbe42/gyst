@@ -1,0 +1,33 @@
+[Unit]
+Description=GYST (dev) — Reflex sandbox behind Caddy on :8443
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nope
+Group=nope
+WorkingDirectory=/opt/house-inventory/house_demo
+Environment="PYTHONPATH=/opt/house-inventory"
+Environment="HOME=/opt/house-inventory"
+Environment="XDG_DATA_HOME=/opt/house-inventory/.local/share"
+Environment="XDG_CACHE_HOME=/opt/house-inventory/.cache"
+Environment="XDG_CONFIG_HOME=/opt/house-inventory/.config"
+Environment="REFLEX_DIR=/opt/house-inventory/.local/share/reflex"
+Environment="HF_HOME=/opt/house-inventory/.cache/huggingface"
+Environment="GYST_ENV=dev"
+Environment="GYST_PUBLIC_ORIGIN=https://gyst.local:8443"
+ExecStart=/opt/house-inventory/.venv/bin/reflex run --env prod --loglevel info
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/house-inventory
+AmbientCapabilities=
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

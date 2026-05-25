@@ -1,0 +1,1 @@
+"""Groceries — shared shopping list."""

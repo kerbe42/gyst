@@ -1,0 +1,11 @@
+[Unit]
+Description=GYST morning briefing — 7 AM daily
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+RandomizedDelaySec=5m
+Persistent=true
+Unit=gyst-briefings@morning.service
+
+[Install]
+WantedBy=timers.target

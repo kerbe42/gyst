@@ -1,0 +1,128 @@
+# GYST prod — reverse proxy.
+#
+# Drop this file at /etc/caddy/Caddyfile (or merge with an existing one)
+# and `sudo systemctl reload caddy`.
+#
+# Three blocks below — uncomment ONE:
+#   (A) plain :80 HTTP   — current default while TLS certs aren't ready
+#   (B) :443 + Let's Encrypt
+#   (C) :443 + tls internal (self-signed, homelab)
+#
+# When you move off (A), don't forget to also flip the GYST_PUBLIC_ORIGIN
+# override on the systemd unit from http:// to https:// — otherwise the
+# session cookie won't set its Secure flag.
+
+# --- (A) Dual HTTP/HTTPS with self-signed cert -----------------------------
+# Browsers (Chrome especially) HTTPS-upgrade .local and host-named URLs
+# even when typed as http://, so we serve both schemes. `tls internal`
+# makes Caddy mint a self-signed cert for the named host without needing
+# ACME / Let's Encrypt. The first browser visit will show a warning —
+# click through and add an exception.
+#
+# Two site blocks:
+#   1) gyst.local — auto-HTTPS via internal CA; HTTP requests to
+#      this hostname automatically redirect to HTTPS.
+#   2) :80 catch-all — plain HTTP for IP-based access (no SNI), or
+#      anything that doesn't match the named host.
+#
+# Update the hostname below if you change it (and re-issue the cert by
+# restarting caddy).
+
+(reverseproxy) {
+    encode zstd gzip
+
+    # --- Caching strategy ----------------------------------------------------
+    # 1. Fingerprinted asset chunks (vite outputs `name-HASH.js` etc.) are
+    #    immutable: once a build pins a hash, that hash IS that content forever.
+    #    Cache them aggressively so repeat visits don't re-download the bundle.
+    @fingerprinted {
+        path_regexp \.(js|css|woff2?|ttf|otf|map)$
+        path /assets/*
+    }
+    header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+
+    # 2. Static icons / manifest — cache for a day, validate after.
+    @pwa_static {
+        path /icons/*
+        path /manifest.webmanifest
+        path /favicon.ico
+        path /apple-touch-icon*.png
+    }
+    header @pwa_static Cache-Control "public, max-age=86400, must-revalidate"
+
+    # 3. Service worker itself — never cache, or upgrades won't propagate.
+    @sw_files {
+        path /sw.js
+        path /pwa-register.js
+    }
+    header @sw_files Cache-Control "no-cache, no-store, must-revalidate"
+
+    # 4. /photo/* and /chore_photo/* are served by the backend with their
+    #    own private cache headers, leave them alone.
+
+    reverse_proxy 127.0.0.1:3002 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        # Content Security Policy — defense in depth against XSS that slips
+        # past React's escaping. Reflex injects some inline JS at boot,
+        # which forces 'unsafe-inline' on script-src; tighten later if you
+        # drop those (e.g. by hashing them).
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' wss: https:; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        # Lock down the browser feature surface to what the app actually uses
+        # (camera/uploads via standard <input>, push via SW).
+        Permissions-Policy "camera=(self), microphone=(), geolocation=(), interest-cohort=(), payment=(), usb=(), bluetooth=()"
+    }
+}
+
+gyst.local {
+    tls internal
+    import reverseproxy
+}
+
+:80 {
+    import reverseproxy
+}
+
+# --- (B) Real hostname with Let's Encrypt ----------------------------------
+# gyst.example.com {
+#     encode zstd gzip
+#     reverse_proxy 127.0.0.1:3002 {
+#         header_up Host {host}
+#         header_up X-Real-IP {remote_host}
+#         header_up X-Forwarded-For {remote_host}
+#         header_up X-Forwarded-Proto {scheme}
+#     }
+#     header {
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains"
+#         X-Content-Type-Options nosniff
+#         X-Frame-Options DENY
+#         Referrer-Policy strict-origin-when-cross-origin
+#     }
+# }
+
+# --- (C) Internal / self-signed on :443 ------------------------------------
+# Use this on a homelab box with no public DNS — generates a self-signed
+# cert on first run. Browsers will warn the first time.
+#
+# :443 {
+#     tls internal
+#     reverse_proxy 127.0.0.1:3002 {
+#         header_up Host {host}
+#         header_up X-Real-IP {remote_host}
+#         header_up X-Forwarded-For {remote_host}
+#         header_up X-Forwarded-Proto {scheme}
+#     }
+#     header {
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains"
+#         X-Content-Type-Options nosniff
+#         X-Frame-Options DENY
+#         Referrer-Policy strict-origin-when-cross-origin
+#     }
+# }

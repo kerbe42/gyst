@@ -1,0 +1,12 @@
+[Unit]
+Description=JARVIS proactive thinking — every 3 hours
+
+[Timer]
+# Daytime only (8 AM - 8 PM) to avoid late-night pings.
+OnCalendar=08,11,14,17,20:00:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=gyst-jarvis-think.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=GYST purge expired sessions (dev + prod)
+After=network.target
+
+[Service]
+Type=oneshot
+User=nope
+Environment="PYTHONPATH=/opt/house-inventory"
+ExecStart=/opt/house-inventory/.venv/bin/python3 -c "from chores import db; db.init_db(); n=db.purge_expired_sessions(); print(f'dev: purged {n} expired session(s)')"
+# Also do prod with its own venv + sys.path
+Environment="PROD_PY=/opt/gyst-prod/.venv/bin/python3"
+ExecStart=/opt/gyst-prod/.venv/bin/python3 -c "import sys; sys.path.insert(0, '/opt/gyst-prod'); from chores import db; db.init_db(); n=db.purge_expired_sessions(); print(f'prod: purged {n} expired session(s)')"
+
+NoNewPrivileges=true

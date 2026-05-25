@@ -1,0 +1,16 @@
+[Unit]
+Description=GYST daily data backup (restic)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/gyst-backup
+# Run as root so we can read both data dirs regardless of owner. The repo
+# at /var/backups/gyst-data is also root-only.
+User=root
+# Don't kick off two at once if a previous run is still going.
+LockPersonality=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

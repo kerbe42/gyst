@@ -1,0 +1,42 @@
+[Unit]
+Description=GYST (prod) — Reflex backend behind Caddy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nope
+Group=nope
+WorkingDirectory=/opt/gyst-prod/house_demo
+Environment="PYTHONPATH=/opt/gyst-prod"
+# Redirect all XDG / user-cache paths under /opt/gyst-prod so the service
+# can keep ProtectHome=true. Reflex, Hugging Face, and pip otherwise default
+# to ~/.local/share, ~/.cache, etc., which are blocked.
+Environment="HOME=/opt/gyst-prod"
+Environment="XDG_DATA_HOME=/opt/gyst-prod/.local/share"
+Environment="XDG_CACHE_HOME=/opt/gyst-prod/.cache"
+Environment="XDG_CONFIG_HOME=/opt/gyst-prod/.config"
+Environment="REFLEX_DIR=/opt/gyst-prod/.local/share/reflex"
+Environment="HF_HOME=/opt/gyst-prod/.cache/huggingface"
+# Public origin Caddy serves on. Override per host with:
+#   sudo systemctl edit gyst-prod
+# and add an [Service] / Environment="GYST_PUBLIC_ORIGIN=https://your.host"
+# override file.
+Environment="GYST_PUBLIC_ORIGIN=http://localhost"
+ExecStart=/opt/gyst-prod/.venv/bin/reflex run --env prod --loglevel info
+Restart=on-failure
+RestartSec=5
+
+# Tighten what the service can touch on the host.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/gyst-prod
+# Reflex needs CAP_NET_BIND_SERVICE only if binding < 1024 — we don't
+# (3002 is fine), so leave caps empty.
+AmbientCapabilities=
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

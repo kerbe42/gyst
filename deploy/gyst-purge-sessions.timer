@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GYST expired-session purge daily
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15m
+Persistent=true
+Unit=gyst-purge-sessions.service
+
+[Install]
+WantedBy=timers.target

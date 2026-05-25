@@ -1,0 +1,38 @@
+# GYST dockerized — isolated copy of the prod app on :10443.
+# Does not share data with host gyst-prod / gyst-dev.
+#
+#   sudo docker compose up -d        # start (rebuilds if Dockerfile changed)
+#   sudo docker compose logs -f      # live tail
+#   sudo docker compose restart      # restart without rebuild
+#   sudo docker compose down         # stop + remove container (volume kept)
+#   sudo docker compose build        # explicit rebuild
+#   sudo docker compose down -v      # ALSO drop the data volume (fresh DBs)
+services:
+  gyst:
+    build: .
+    image: gyst:docker
+    container_name: gyst-docker
+    restart: unless-stopped
+    ports:
+      # Listens on the host's :10443 (HTTPS, self-signed via Caddy
+      # `tls internal`). Host's :443 (prod) and :8443 (dev) untouched.
+      - "10443:10443"
+    volumes:
+      # SQLite DBs, photos, Caddy CA + cert, Reflex compile cache.
+      - gyst-docker-data:/app/data
+      # Share the HOST'S internal CA so the container's cert chains to
+      # a CA the user's browser already trusts (gyst-prod + gyst-dev use
+      # this CA). Without this, Firefox throws SEC_ERROR_BAD_SIGNATURE
+      # because two different internal CAs claim the same hostname.
+      # Read-only — the container never writes to the host CA.
+      - /var/lib/caddy/.local/share/caddy/pki/authorities/local/:/host-caddy-ca/:ro
+    healthcheck:
+      test: ["CMD", "curl", "-ksf", "https://127.0.0.1:10443/", "-o", "/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  gyst-docker-data:
+    name: gyst-docker-data

@@ -1,0 +1,1 @@
+"""Announcements — household bulletin board."""

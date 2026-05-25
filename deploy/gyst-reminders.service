@@ -1,0 +1,14 @@
+[Unit]
+Description=GYST reminder dispatcher (dev + prod)
+After=network.target
+
+[Service]
+Type=oneshot
+User=nope
+# Run twice — once with the dev venv pointed at the dev tree, once with
+# the prod venv pointed at the prod tree. Each ExecStart line uses its
+# own interpreter + PYTHONPATH so the two environments stay isolated.
+ExecStart=/opt/house-inventory/.venv/bin/python3 /opt/house-inventory/deploy/gyst-reminders.py --env dev
+ExecStart=/opt/gyst-prod/.venv/bin/python3       /opt/house-inventory/deploy/gyst-reminders.py --env prod
+NoNewPrivileges=true
+UMask=0077
