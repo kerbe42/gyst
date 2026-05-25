@@ -131,7 +131,7 @@ Same content as Python source: see `house_demo/house_demo/pages.py` → `help_pa
 
 ## License
 
-Source-available for personal use; no warranty. See repo settings for the configured license.
+MIT — see [LICENSE](LICENSE). Use it, fork it, run a copy for your own household, embed pieces in your own project. No warranty.
 
 ---
 
