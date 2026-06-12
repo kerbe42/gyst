@@ -521,7 +521,139 @@ def _delete_announcement(announcement_id):
     return {"ok": True, "id": int(announcement_id)}
 
 
+# ---- Strongman training + nutrition -----------------------------------------
+def _sm_today():
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    from strongman import sessions as sm_sessions
+    sm_db.init_db()
+    iso = sm_engine.today_iso()
+    s = sm_sessions.session_for(iso, sm_db.engine_state())
+    if s is None:
+        return {"date": iso, "in_plan": False, "message": "Today is outside the 52-week plan."}
+    return {
+        "date": iso, "week": s["week"], "quarter": s["quarter"], "type": s["week_type"],
+        "title": s["title"], "is_test_week": s["is_test_week"], "is_calibration": s["is_calibration"],
+        "exercises": [
+            {"id": it["exercise_id"], "name": it.get("name"), "sets": it.get("sets"),
+             "reps": it.get("reps"), "weight_lb": it.get("weight_lb"), "rpe": it.get("rpe_cap")}
+            for it in s["items"]
+        ],
+        "recovery": s.get("recovery") or [],
+    }
+
+
+def _sm_log_set(exercise_id, weight=None, reps=None, rpe=None, sets=1, date=None):
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    sm_db.init_db()
+    iso = date or sm_engine.today_iso()
+    n = max(1, int(sets or 1))
+    rows = [{"set_num": i + 1,
+             "weight_lb": float(weight) if weight is not None else None,
+             "reps": int(reps) if reps is not None else None,
+             "rpe": float(rpe) if rpe is not None else None, "note": None} for i in range(n)]
+    sm_db.set_exercise_sets(iso, exercise_id, rows)
+    return {"ok": True, "date": iso, "exercise_id": exercise_id, "sets_logged": n}
+
+
+def _sm_macros_today():
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    from strongman import nutrition as sm_nutrition
+    sm_db.init_db()
+    iso = sm_engine.today_iso()
+    totals = sm_db.meal_totals(iso)
+    s = sm_db.get_settings()
+    return {"date": iso, "protein_g": totals["protein_g"], "kcal": totals["kcal"],
+            "protein_target_g": sm_nutrition.protein_target_g(s["bodyweight_lb"]),
+            "kcal_target": s["kcal_target"]}
+
+
+def _sm_log_standard_day():
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    from strongman import nutrition as sm_nutrition
+    sm_db.init_db()
+    iso = sm_engine.today_iso()
+    meals = sm_nutrition.fixed_template_meals()
+    for m in meals:
+        sm_db.add_meal(iso, m["id"], m["name"], m["protein_g"], m["kcal"], 1)
+    return {"ok": True, "date": iso, "meals_logged": len(meals)}
+
+
+def _sm_training_max(lift_id):
+    from strongman import data as sm_data
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    try:
+        lift = sm_data.get_lift(lift_id)
+    except KeyError:
+        return {"error": f"unknown lift {lift_id}", "valid_ids": [x["id"] for x in sm_data.all_lifts()]}
+    tms = sm_db.get_tms()
+    return {"lift_id": lift_id, "name": lift["name"],
+            "q1": sm_engine.resolve_tm(lift_id, 1, tms), "q2": sm_engine.resolve_tm(lift_id, 2, tms),
+            "q3": sm_engine.resolve_tm(lift_id, 3, tms), "q4": sm_engine.resolve_tm(lift_id, 4, tms)}
+
+
+def _sm_set_bodyweight(lb):
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    sm_db.init_db()
+    iso = sm_engine.today_iso()
+    sm_db.set_bodyweight(iso, float(lb))
+    return {"ok": True, "date": iso, "lb": float(lb)}
+
+
 TOOLS: dict[str, dict] = {
+    "strongman_today": {
+        "fn": _sm_today,
+        "description": "Today's strongman training session: week/quarter/type and the prescribed exercises with computed weights, sets, reps, RPE.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    "strongman_log_set": {
+        "fn": _sm_log_set,
+        "description": "Log completed sets for an exercise in today's strongman session. Pass the exercise id (e.g. trap_bar_deadlift), the weight, reps, optional RPE, and how many sets.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "exercise_id": {"type": "string"},
+                "weight": {"type": "number"},
+                "reps": {"type": "integer"},
+                "rpe": {"type": "number"},
+                "sets": {"type": "integer", "default": 1},
+            },
+            "required": ["exercise_id"],
+        },
+    },
+    "strongman_macros_today": {
+        "fn": _sm_macros_today,
+        "description": "Today's logged protein and calories vs targets for the strongman nutrition plan.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    "strongman_log_standard_day": {
+        "fn": _sm_log_standard_day,
+        "description": "Log the five fixed-template meals (the strongman 'standard day', ~197 g protein) for today.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    "strongman_training_max": {
+        "fn": _sm_training_max,
+        "description": "Current training maxes (Q1-Q4) for a strongman lift id (e.g. trap_bar_deadlift, axle_press).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"lift_id": {"type": "string"}},
+            "required": ["lift_id"],
+        },
+    },
+    "strongman_set_bodyweight": {
+        "fn": _sm_set_bodyweight,
+        "description": "Record today's bodyweight (lb) for the strongman tracker.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"lb": {"type": "number"}},
+            "required": ["lb"],
+        },
+    },
     "now": {
         "fn": _now,
         "description": (

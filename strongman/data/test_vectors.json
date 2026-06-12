@@ -1,0 +1,44 @@
+{
+  "comment": "Expected target weights computed and verified in the source spreadsheet (LibreOffice recalc, zero errors). The app's progression engine MUST reproduce these exactly with the placeholder TMs from plan_config.json. Write unit tests against every vector before building UI.",
+  "engine_rules": {
+    "quarter": "q = ceil(week/13)",
+    "week_in_quarter": "wq = week - (q-1)*13",
+    "week_type": "wq==13 -> test; wq in {4,8,12} -> deload; else build",
+    "build_index": "k = wq - (wq>4) - (wq>8); k in 1..9",
+    "build_target": "mround(TM[lift][q] + (k-1)*increment, round_to), then min(cap) if cap",
+    "deload_target": "mround(TM[lift][q] * 0.6, round_to)",
+    "sandbag": "flat per quarter: mround(TM_sandbag[q], 25)",
+    "tm_q_default": "TM[q] = TM[q-1] + q_deltas[q-2] (suggestion only; user overrides after test weeks)",
+    "mround": "round to nearest multiple; ties round up (Excel MROUND behavior)"
+  },
+  "vectors": [
+    { "week": 1,  "week_type": "build", "k": 1, "lift": "trap_bar_deadlift", "expected_lb": 315 },
+    { "week": 3,  "week_type": "build", "k": 3, "lift": "trap_bar_deadlift", "expected_lb": 335 },
+    { "week": 8,  "week_type": "deload",        "lift": "trap_bar_deadlift", "expected_lb": 190 },
+    { "week": 11, "week_type": "build", "k": 9, "lift": "trap_bar_deadlift", "expected_lb": 395 },
+    { "week": 14, "week_type": "build", "k": 1, "lift": "trap_bar_deadlift", "expected_lb": 335 },
+    { "week": 25, "week_type": "deload",        "lift": "trap_bar_deadlift", "expected_lb": 200 },
+    { "week": 5,  "week_type": "build", "k": 4, "lift": "axle_press", "expected_lb": 120, "note": "push press uses same load as strict target" },
+    { "week": 14, "week_type": "build", "k": 1, "lift": "axle_press", "expected_lb": 115 },
+    { "week": 1,  "week_type": "build", "k": 1, "lift": "suitcase_carry", "expected_lb": 80 },
+    { "week": 11, "week_type": "build", "k": 9, "lift": "suitcase_carry", "expected_lb": 90, "note": "cap at 90 engaged (uncapped would be 120)" },
+    { "week": 40, "week_type": "build", "k": 1, "lift": "suitcase_carry", "expected_lb": 90, "note": "cap holds in Q4" },
+    { "week": 1,  "week_type": "build", "lift": "sandbag", "expected_lb": 100 },
+    { "week": 14, "week_type": "build", "lift": "sandbag", "expected_lb": 125 },
+    { "week": 27, "week_type": "build", "lift": "sandbag", "expected_lb": 150 },
+    { "week": 40, "week_type": "build", "lift": "sandbag", "expected_lb": 175 }
+  ],
+  "calendar_invariants": [
+    "start date 2026-06-15 is a Monday; plan spans exactly 364 days (52 weeks)",
+    "every one of the 364 days resolves to exactly one session type",
+    "week 1 is flagged calibration",
+    "weeks 13, 26, 39, 52 are test weeks",
+    "sandbag_over_bar appears on build Saturdays only from week 5 onward, never on deload Saturdays"
+  ],
+  "nutrition_invariants": [
+    "protein_target_g(285) == 230",
+    "fixed daily template (no dinner) sums to 197 g protein / 2535 kcal from meals.json items tagged fixed_template",
+    "7-day dinner rotation weekly average == 237 g protein / ~3308 kcal (tolerance +/- 1 g, +/- 15 kcal from rounding)",
+    "no meal in meals.json contains an ingredient on excluded_user or excluded_gout lists"
+  ]
+}

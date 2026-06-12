@@ -197,6 +197,7 @@ MEALS_DB_PATH: Path = DATA_DIR / "meals.db"
 APPOINTMENTS_DB_PATH: Path = DATA_DIR / "appointments.db"
 NOTES_DB_PATH: Path = DATA_DIR / "notes.db"
 NOTIFICATIONS_DB_PATH: Path = DATA_DIR / "notifications.db"
+STRONGMAN_DB_PATH: Path = DATA_DIR / "strongman.db"
 
 # Photos uploaded as proof-of-completion for chores live here.
 CHORE_PHOTOS_DIR: Path = DATA_DIR / "chore_photos"

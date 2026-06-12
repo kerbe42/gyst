@@ -1,0 +1,95 @@
+{
+  "comment": "Macros are typical USDA/label values; brands vary +/- 10%. Every meal complies with dietary_rules in plan_config.json: no eggs, no legumes of any kind (incl. peanuts, soy, peas, green beans), no high-purine flesh, flesh portions capped at 4-5 oz per meal. Fixed-template items must sum to 197 g protein / 2535 kcal (see test_vectors nutrition_invariants).",
+  "fixed_template": [
+    { "id": "anchor_bowl", "name": "Anchor Bowl", "slot": "breakfast", "protein_g": 53, "kcal": 855,
+      "items": [
+        { "food": "Greek yogurt 0% plain", "amount": "1.5 cups (375 g)", "p": 38, "kcal": 220 },
+        { "food": "Rolled oats, dry", "amount": "80 g", "p": 10, "kcal": 305 },
+        { "food": "Blueberries", "amount": "1 cup", "p": 1, "kcal": 85 },
+        { "food": "Walnuts", "amount": "30 g", "p": 4, "kcal": 195 },
+        { "food": "Maple syrup", "amount": "1 tbsp", "p": 0, "kcal": 50 }
+      ] },
+    { "id": "double_whey", "name": "Double-Whey Shake", "slot": "shake", "protein_g": 60, "kcal": 415,
+      "items": [
+        { "food": "Whey protein", "amount": "2 scoops (~62 g)", "p": 48, "kcal": 240 },
+        { "food": "Milk 2%", "amount": "350 ml", "p": 12, "kcal": 175 }
+      ] },
+    { "id": "standard_lunch", "name": "Chicken & Rice Standard", "slot": "lunch", "protein_g": 44, "kcal": 690,
+      "items": [
+        { "food": "Chicken breast, cooked", "amount": "4 oz (113 g)", "p": 35, "kcal": 185 },
+        { "food": "Rice, cooked", "amount": "1.5 cups (~240 g)", "p": 6, "kcal": 310 },
+        { "food": "Mixed vegetables + 1 tbsp olive oil", "amount": "1.5 cups", "p": 3, "kcal": 195 }
+      ] },
+    { "id": "cottage_snack", "name": "Cottage Power Snack", "slot": "snack", "protein_g": 32, "kcal": 450,
+      "items": [
+        { "food": "Cottage cheese 2%", "amount": "1 cup (225 g)", "p": 25, "kcal": 180 },
+        { "food": "Cherries (or any fruit)", "amount": "1 cup", "p": 1, "kcal": 95 },
+        { "food": "Almonds", "amount": "30 g", "p": 6, "kcal": 175 }
+      ] },
+    { "id": "evening_milk", "name": "Evening Milk", "slot": "evening", "protein_g": 8, "kcal": 125,
+      "items": [ { "food": "Milk 2%", "amount": "250 ml", "p": 8, "kcal": 125 } ] }
+  ],
+  "dinner_rotation": [
+    { "id": "dinner_thigh", "name": "Chicken Thigh Plate", "protein_g": 39, "kcal": 780, "protein_source": { "food": "Chicken thighs, skinless, cooked", "amount": "4 oz", "p": 29, "kcal": 200 }, "default_days": ["mon", "thu"] },
+    { "id": "dinner_salmon", "name": "Salmon Plate", "protein_g": 38, "kcal": 815, "protein_source": { "food": "Salmon, cooked", "amount": "4 oz", "p": 28, "kcal": 235 }, "default_days": ["tue", "fri"] },
+    { "id": "dinner_pork", "name": "Pork Tenderloin Plate", "protein_g": 40, "kcal": 745, "protein_source": { "food": "Pork tenderloin, cooked", "amount": "4 oz", "p": 30, "kcal": 165 }, "default_days": ["wed"] },
+    { "id": "dinner_turkey", "name": "Turkey Plate", "protein_g": 44, "kcal": 735, "protein_source": { "food": "Turkey breast, cooked", "amount": "4 oz", "p": 34, "kcal": 155 }, "default_days": ["sat"] },
+    { "id": "dinner_haddock", "name": "Haddock Plate", "protein_g": 43, "kcal": 740, "protein_source": { "food": "Haddock, cooked", "amount": "5 oz", "p": 33, "kcal": 160 }, "default_days": ["sun"] }
+  ],
+  "dinner_fixed_sides": { "description": "Every dinner plate includes these sides", "protein_g": 10, "kcal": 580,
+    "items": [
+      { "food": "Roasted potatoes", "amount": "350 g", "p": 7, "kcal": 325 },
+      { "food": "Big salad + 1 tbsp olive oil", "amount": "", "p": 2, "kcal": 160 },
+      { "food": "Cherries", "amount": "1 cup", "p": 1, "kcal": 95 }
+    ] },
+  "super_meals_extra": [
+    { "id": "protein_oats", "name": "Protein Oats", "slot": ["breakfast", "snack"], "protein_g": 55, "kcal": 695,
+      "items": [
+        { "food": "Rolled oats, dry", "amount": "80 g", "p": 10, "kcal": 305 },
+        { "food": "Whey protein", "amount": "1.5 scoops", "p": 36, "kcal": 180 },
+        { "food": "Milk 2%", "amount": "250 ml", "p": 8, "kcal": 125 },
+        { "food": "Blueberries", "amount": "1 cup", "p": 1, "kcal": 85 }
+      ], "prep": "Cook oats in milk, stir whey in off heat." },
+    { "id": "skyr_parfait", "name": "Skyr Power Parfait", "slot": ["breakfast", "snack"], "protein_g": 45, "kcal": 570,
+      "items": [
+        { "food": "Skyr 0%", "amount": "350 g", "p": 38, "kcal": 220 },
+        { "food": "Oat granola (no honey-bomb brands)", "amount": "40 g", "p": 4, "kcal": 180 },
+        { "food": "Mixed berries", "amount": "1 cup", "p": 1, "kcal": 70 },
+        { "food": "Walnuts", "amount": "15 g", "p": 2, "kcal": 100 }
+      ] },
+    { "id": "chicken_ranch_wrap", "name": "Chicken & Yogurt-Ranch Wrap", "slot": ["lunch"], "protein_g": 52, "kcal": 580,
+      "items": [
+        { "food": "Chicken breast, cooked", "amount": "4 oz", "p": 35, "kcal": 185 },
+        { "food": "Large flour tortilla", "amount": "1", "p": 6, "kcal": 210 },
+        { "food": "Greek-yogurt ranch (yogurt + ranch seasoning)", "amount": "3 tbsp", "p": 3, "kcal": 45 },
+        { "food": "Cheddar", "amount": "30 g", "p": 7, "kcal": 120 },
+        { "food": "Lettuce + tomato", "amount": "", "p": 1, "kcal": 20 }
+      ], "note": "Ranch is yogurt-based deliberately — bottled ranch and Caesar dressings usually contain egg (and Caesar contains anchovy)." },
+    { "id": "nightcap_cocoa", "name": "Night-Cap Cocoa Shake", "slot": ["evening"], "protein_g": 37, "kcal": 310,
+      "items": [
+        { "food": "Milk 2%", "amount": "350 ml", "p": 12, "kcal": 175 },
+        { "food": "Whey protein", "amount": "1 scoop", "p": 24, "kcal": 120 },
+        { "food": "Cocoa powder", "amount": "1 tbsp", "p": 1, "kcal": 15 }
+      ], "note": "Heavier evening option when the day is short on protein." },
+    { "id": "cottage_potato_bowl", "name": "Cottage-Potato Recovery Bowl", "slot": ["lunch", "snack"], "protein_g": 31, "kcal": 500,
+      "items": [
+        { "food": "Cottage cheese 2%", "amount": "1 cup", "p": 25, "kcal": 180 },
+        { "food": "Roasted potatoes", "amount": "300 g", "p": 6, "kcal": 280 },
+        { "food": "Olive oil + chives + pepper", "amount": "1 tsp oil", "p": 0, "kcal": 40 }
+      ], "note": "Zero-flesh meal — useful on flare-protocol days." },
+    { "id": "salmon_rice_bowl", "name": "Salmon Rice Bowl", "slot": ["lunch", "dinner"], "protein_g": 37, "kcal": 695,
+      "items": [
+        { "food": "Salmon, cooked", "amount": "4 oz", "p": 28, "kcal": 235 },
+        { "food": "Rice, cooked", "amount": "1.5 cups", "p": 6, "kcal": 310 },
+        { "food": "Half avocado + cucumber", "amount": "", "p": 1, "kcal": 120 },
+        { "food": "Greek-yogurt sriracha drizzle", "amount": "2 tbsp", "p": 2, "kcal": 30 }
+      ] },
+    { "id": "turkey_melt", "name": "Turkey Melt Plate", "slot": ["lunch", "dinner"], "protein_g": 51, "kcal": 655,
+      "items": [
+        { "food": "Turkey breast, cooked", "amount": "4 oz", "p": 34, "kcal": 155 },
+        { "food": "Sourdough", "amount": "2 slices", "p": 8, "kcal": 220 },
+        { "food": "Cheddar", "amount": "30 g", "p": 7, "kcal": 120 },
+        { "food": "Side salad + 1 tbsp olive oil", "amount": "", "p": 2, "kcal": 160 }
+      ] }
+  ]
+}

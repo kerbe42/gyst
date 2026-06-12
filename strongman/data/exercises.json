@@ -1,0 +1,106 @@
+{
+  "comment": "Demo policy: no hardcoded video URLs — they rot and none were verified. Each exercise ships coaching cues plus a demo_search string. The app renders a 'Watch demo' button linking to https://www.youtube.com/results?search_query=<urlencoded demo_search>. User can pin a preferred video URL per exercise in settings; pinned URLs are user-supplied data.",
+  "exercises": [
+    {
+      "id": "trap_bar_deadlift", "name": "Trap Bar Deadlift", "type": "main", "equipment": ["trap bar", "plates"],
+      "cues": ["Stand mid-bar, shins near handles", "Brace hard before the pull — big breath into the belt line", "Push the floor away; hips and shoulders rise together", "Lock out tall, no lean-back"],
+      "safety": "Straps on top sets only, from week 3 on.",
+      "demo_search": "trap bar deadlift technique"
+    },
+    {
+      "id": "axle_clean_strict_press", "name": "Axle Clean & Strict Press", "type": "main", "equipment": ["2-inch axle", "plates"],
+      "cues": ["Continental clean: pull to belt, catch on belly/forearms, reset grip, pop to shoulders", "Elbows slightly forward in the rack", "Strict press: squeeze glutes, ribs down, press around the chin then through"],
+      "safety": "Keep continentals light the first month — no bicep yank on the catch. This movement and sloppy bag work are the two classic biceps-tear mechanisms.",
+      "demo_search": "axle continental clean and press strongman"
+    },
+    {
+      "id": "axle_push_press", "name": "Axle Push Press", "type": "main", "equipment": ["2-inch axle", "plates"],
+      "cues": ["Shallow dip — knees forward, torso vertical", "Drive through the floor, bar leaves shoulders on leg power", "Punch under and lock"],
+      "safety": "Same load as strict target; the legs buy the extra reps.",
+      "demo_search": "axle push press technique strongman"
+    },
+    {
+      "id": "db_bench", "name": "DB Bench Press", "type": "accessory", "equipment": ["adjustable dumbbells", "bench"],
+      "cues": ["Shoulder blades pinned to the bench", "Elbows ~45 degrees", "Press to mid-chest lockout"],
+      "demo_search": "dumbbell bench press form"
+    },
+    {
+      "id": "db_row", "name": "Heavy DB Row", "type": "accessory", "equipment": ["adjustable dumbbells", "bench"],
+      "cues": ["Hand and knee on bench, flat back", "Row to the hip, not the armpit", "Control the bottom — no bounce"],
+      "demo_search": "single arm dumbbell row form"
+    },
+    {
+      "id": "db_split_squat", "name": "DB Split Squat", "type": "accessory", "equipment": ["adjustable dumbbells"],
+      "cues": ["Long stance, rear heel up", "Drop straight down, front shin near vertical", "Drive through the front foot"],
+      "demo_search": "dumbbell split squat form"
+    },
+    {
+      "id": "suitcase_carry", "name": "Suitcase Carry", "type": "event", "equipment": ["adjustable dumbbells"],
+      "cues": ["One DB at the side like a suitcase", "Hips and shoulders level — the work is refusing to lean", "Short fast steps"],
+      "demo_search": "suitcase carry exercise form"
+    },
+    {
+      "id": "sandbag_bear_hug_squat", "name": "Sandbag Bear-Hug Squat", "type": "event", "equipment": ["loadable sandbag"],
+      "cues": ["Wrap and crush the bag to the chest", "Sit between the knees", "Stand through the mid-foot"],
+      "substitution": "Until bag arrives: Smith squat 3x10.",
+      "demo_search": "sandbag bear hug squat"
+    },
+    {
+      "id": "sandbag_to_shoulder", "name": "Sandbag to Shoulder", "type": "event", "equipment": ["loadable sandbag"],
+      "cues": ["Deadlift bag to the lap", "Hug it high on the chest", "Violent hip extension throws it to the shoulder — arms guide, never curl"],
+      "safety": "NEVER reverse-curl the bag up. Lap, hug, hips. This rule is non-negotiable — it is the biceps-tear mechanism.",
+      "demo_search": "sandbag to shoulder technique strongman"
+    },
+    {
+      "id": "sandbag_over_bar", "name": "Sandbag over Bar", "type": "event", "equipment": ["loadable sandbag", "smith machine"],
+      "cues": ["Smith bar pinned 48-52 inches", "Lap the bag, hug, extend hips and roll it over the bar", "Reset fully each rep"],
+      "substitution": "Stone-over-bar substitute.",
+      "demo_search": "sandbag over bar strongman event"
+    },
+    {
+      "id": "sandbag_bear_hug_carry", "name": "Sandbag Bear-Hug Carry", "type": "event", "equipment": ["loadable sandbag"],
+      "cues": ["Crush grip on the bag, chest tall as possible", "Breathe shallow and fast at the top of the brace", "Short quick steps"],
+      "demo_search": "sandbag bear hug carry"
+    },
+    {
+      "id": "farmers_carry_trap_bar", "name": "Trap Bar Farmer's Carry", "type": "event", "equipment": ["trap bar", "plates"],
+      "cues": ["Deadlift it up, settle one beat", "Tall posture, eyes forward", "Quick feet; fight the wobble, don't chase it"],
+      "safety": "Straps fine once grip is the only limiter. Q2+: timed runs — drop time before adding load.",
+      "demo_search": "trap bar farmers carry",
+      "note": "Handle position differs from true farmer's handles; carry stimulus is close."
+    },
+    {
+      "id": "axle_deadlift_doh", "name": "Axle Deadlift — Double Overhand", "type": "grip", "equipment": ["2-inch axle", "plates"],
+      "cues": ["Double overhand, no hook, no straps", "Crush the bar before it leaves the floor", "Set ends when the grip opens, not when the back tires"],
+      "safety": "Strapless permanently — this slot IS the grip training.",
+      "demo_search": "axle deadlift double overhand grip"
+    },
+    {
+      "id": "kb_swing", "name": "KB Swing", "type": "conditioning", "equipment": ["adjustable kettlebell"],
+      "cues": ["Hinge, don't squat", "Snap the hips; the bell floats to chest height", "Let it fall, hinge to meet it"],
+      "demo_search": "kettlebell swing form hardstyle"
+    },
+    {
+      "id": "skullcrusher", "name": "Tricep-Bar Skull-Crusher", "type": "accessory", "equipment": ["tricep bar", "bench"],
+      "cues": ["Elbows fixed, lower to forehead/just behind", "Press without flaring"],
+      "demo_search": "lying tricep extension ez bar form"
+    },
+    {
+      "id": "curl", "name": "Curl-Bar Curl", "type": "accessory", "equipment": ["curl bar"],
+      "cues": ["Elbows pinned to sides", "Full range, controlled negative — the negative is the tendon work"],
+      "note": "Biceps insurance for event days, not vanity volume.",
+      "demo_search": "ez bar curl form"
+    },
+    {
+      "id": "db_clean_press_sub", "name": "DB Clean & Press (axle substitute)", "type": "substitute", "equipment": ["adjustable dumbbells"],
+      "cues": ["Clean both bells to the shoulders once", "Strict press the prescribed reps"],
+      "demo_search": "dumbbell clean and press form"
+    },
+    {
+      "id": "smith_squat_sub", "name": "Smith Machine Squat (bag substitute)", "type": "substitute", "equipment": ["smith machine", "plates"],
+      "cues": ["Feet slightly forward of the bar line", "Control depth to parallel or below"],
+      "note": "Stopgap until the sandbag arrives; Smith stays accessory-only afterward — fixed bar path has poor carryover to strongman events.",
+      "demo_search": "smith machine squat form"
+    }
+  ]
+}
