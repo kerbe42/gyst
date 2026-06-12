@@ -8,7 +8,7 @@
 // PWA glue is loaded". It MUST match the BUILD_VERSION string in sw.js.
 // When they disagree, we know the page is running newer client code than
 // the active service worker (or vice versa) and we force a full reset.
-const BUILD_VERSION = "20260514q";
+const BUILD_VERSION = "20260612a";
 
 // Surface the build identity to anything else on the page (the on-screen
 // build banner reads this). Bundle hash comes from a <script src> on the
