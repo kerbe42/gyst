@@ -46,7 +46,7 @@ def eq(actual, expected, msg: str) -> None:
     check(actual == expected, f"{msg}: expected {expected!r}, got {actual!r}")
 
 
-_VECTORS = json.loads((Path(data.__file__).resolve().parent / "data" / "test_vectors.json").read_text())
+_VECTORS = json.loads((Path(data.__file__).resolve().parent / "seed" / "test_vectors.json").read_text())
 
 OWNED = {"equipment": {"sandbag": True, "axle": True}}
 

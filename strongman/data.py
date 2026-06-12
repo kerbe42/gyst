@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-_DATA_DIR: Path = Path(__file__).resolve().parent / "data"
+_DATA_DIR: Path = Path(__file__).resolve().parent / "seed"
 
 
 def _load(name: str) -> Any:
