@@ -136,6 +136,7 @@ def _sidebar_content() -> rx.Component:
         _nav_link("Calendar", "/calendar", "calendar-days"),
         _nav_link("Announcements", "/announcements", "megaphone"),
         _nav_link("Notes", "/notes", "sticky-note"),
+        _nav_link("Strongman", "/strongman", "dumbbell"),
         _section(
             "Inventory",
             "package",

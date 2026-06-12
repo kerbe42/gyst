@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "start_date": "2026-06-15",
+  "weeks": 52,
+  "athlete": {
+    "bodyweight_lb": 285,
+    "protein_formula": "round(bodyweight_lb * 0.8 / 5) * 5",
+    "protein_target_g": 230,
+    "kcal_note": "Target = tracked maintenance + 250. Maintenance unknown until user logs a normal eating week. ~3300 is the working placeholder.",
+    "water_l_per_day": [3.5, 4.0],
+    "creatine_g_per_day": 10
+  },
+  "weekly_schedule": {
+    "mon": "lower",
+    "tue": "gpp_optional",
+    "wed": "press_upper",
+    "thu": "rest",
+    "fri": "rest",
+    "sat": "events",
+    "sun": "rest"
+  },
+  "week_structure": {
+    "quarter_length_weeks": 13,
+    "test_week_wq": [13],
+    "deload_week_wq": [4, 8, 12],
+    "build_k_formula": "k = wq - (wq>4 ? 1 : 0) - (wq>8 ? 1 : 0)",
+    "week1_is_calibration": true
+  },
+  "rep_schemes": {
+    "mains": [
+      { "k_range": [1, 3], "sets": 4, "reps": 5, "rpe_cap": "7" },
+      { "k_range": [4, 6], "sets": 4, "reps": 4, "rpe_cap": "7-8" },
+      { "k_range": [7, 9], "sets": 4, "reps": 3, "rpe_cap": "8" }
+    ],
+    "press_q1_k1to3": { "exercise": "axle_strict_press", "sets": 5, "reps": 3, "rpe_cap": "7" },
+    "press_thereafter": [
+      { "exercise": "axle_strict_press", "sets": 3, "reps": 3, "rpe_cap": "7-8" },
+      { "exercise": "axle_push_press", "sets": 3, "reps": 6, "rpe_cap": "8", "load": "same as strict press target" }
+    ],
+    "deload": { "pct_of_tm": 0.6, "sets": 3, "reps": 5, "rpe_cap": "<=6" },
+    "sandbag_over_bar_starts_week": 5
+  },
+  "lifts": [
+    { "id": "trap_bar_deadlift", "name": "Trap Bar Deadlift", "tm_q1_placeholder": 315, "q_deltas": [20, 15, 10], "build_increment": 10, "round_to": 5, "cap": null },
+    { "id": "axle_press", "name": "Axle Clean & Strict Press", "tm_q1_placeholder": 105, "q_deltas": [10, 5, 5], "build_increment": 5, "round_to": 5, "cap": null },
+    { "id": "db_bench", "name": "DB Bench Press (per hand)", "tm_q1_placeholder": 70, "q_deltas": [10, 5, 5], "build_increment": 5, "round_to": 5, "cap": 90 },
+    { "id": "db_row", "name": "Heavy DB Row (per hand)", "tm_q1_placeholder": 85, "q_deltas": [5, 5, 0], "build_increment": 5, "round_to": 5, "cap": 90 },
+    { "id": "db_split_squat", "name": "DB Split Squat (per hand)", "tm_q1_placeholder": 40, "q_deltas": [10, 5, 5], "build_increment": 5, "round_to": 5, "cap": 90 },
+    { "id": "suitcase_carry", "name": "Suitcase Carry (single DB)", "tm_q1_placeholder": 80, "q_deltas": [5, 5, 0], "build_increment": 5, "round_to": 5, "cap": 90 },
+    { "id": "smith_squat", "name": "Smith Machine Squat (bar+plates)", "tm_q1_placeholder": 185, "q_deltas": [20, 15, 10], "build_increment": 10, "round_to": 5, "cap": null },
+    { "id": "sandbag", "name": "Sandbag (shoulder/squat/carry)", "tm_q1_placeholder": 100, "q_deltas": [25, 25, 25], "build_increment": 0, "round_to": 25, "cap": null, "flat_within_quarter": true },
+    { "id": "farmers_carry", "name": "Trap Bar Farmer's Carry (total bar wt)", "tm_q1_placeholder": 245, "q_deltas": [20, 20, 15], "build_increment": 10, "round_to": 5, "cap": null },
+    { "id": "axle_dl_doh", "name": "Axle Deadlift — Double Overhand", "tm_q1_placeholder": 225, "q_deltas": [20, 15, 10], "build_increment": 10, "round_to": 5, "cap": null },
+    { "id": "curl", "name": "Curl-Bar Curl (bar+plates)", "tm_q1_placeholder": 60, "q_deltas": [5, 5, 5], "build_increment": 0, "round_to": 5, "cap": null },
+    { "id": "skullcrusher", "name": "Tricep-Bar Skull-Crusher (bar+plates)", "tm_q1_placeholder": 55, "q_deltas": [5, 5, 5], "build_increment": 0, "round_to": 5, "cap": null },
+    { "id": "kb_swing", "name": "KB Swing", "tm_q1_placeholder": 40, "q_deltas": [0, 0, 0], "build_increment": 0, "round_to": 5, "cap": 40, "fixed": true }
+  ],
+  "sessions": {
+    "lower_build": [
+      { "exercise": "trap_bar_deadlift", "scheme": "mains", "rest": "3-4 min", "notes": "Straps allowed on top sets from Wk 3 on. Week 1: calibration — find RPE-7 x5, save as Q1 TM." },
+      { "exercise": "sandbag_bear_hug_squat", "sets": 3, "reps": "8", "load_from": "sandbag", "rest": "2-3 min", "notes": "Until bag arrives: Smith squat 3x10 off smith_squat TM, +10 lb/wk." },
+      { "exercise": "db_split_squat", "scheme_load": "db_split_squat", "sets": 3, "reps": "8/leg", "rest": "90 sec" },
+      { "exercise": "suitcase_carry", "scheme_load": "suitcase_carry", "sets": 4, "reps": "50 ft/side", "rest": "2 min", "notes": "Hips level, don't lean." }
+    ],
+    "press_upper_build": [
+      { "exercise": "axle_press_block", "see": "rep_schemes.press_*", "rest": "3 min", "notes": "Continental clean kept tidy — no bicep yank. Until axle arrives: DB clean & press at matching effort." },
+      { "exercise": "db_bench", "sets": 3, "reps": "8-10", "rest": "2 min" },
+      { "exercise": "db_row", "sets": 4, "reps": "10/side", "rest": "90 sec" },
+      { "exercise": "skullcrusher", "sets": 3, "reps": "12", "rest": "superset" },
+      { "exercise": "curl", "sets": 3, "reps": "12", "rest": "90 sec", "notes": "Biceps tendon insurance for events. When 12 clean, +5 lb." }
+    ],
+    "events_build": [
+      { "exercise": "sandbag_to_shoulder", "sets": 6, "reps": "2/side", "load_from": "sandbag", "rest": "2-3 min", "notes": "Lap, hug, hips. NEVER curl it up." },
+      { "exercise": "sandbag_over_bar", "sets": 3, "reps": "3", "load_from": "sandbag", "rest": "2 min", "from_week": 5, "notes": "Smith bar pinned 48-52 in." },
+      { "exercise": "farmers_carry", "scheme_load": "farmers_carry", "sets": 4, "reps": "50 ft (Q2+: 2x50 ft timed)", "rest": "2-3 min" },
+      { "exercise": "sandbag_bear_hug_carry", "sets": 4, "reps": "50 ft", "load_from": "sandbag", "rest": "2 min" },
+      { "exercise": "axle_dl_doh", "scheme_load": "axle_dl_doh", "sets": 3, "reps": "5", "rest": "2 min", "notes": "NO STRAPS ever — this is the grip work." },
+      { "exercise": "kb_swing", "sets": 5, "reps": "15", "rest": "60-90 sec" }
+    ],
+    "gpp_optional": [
+      { "exercise": "kb_swing_intervals", "sets": 10, "reps": "30s on / 90s off", "load_from": "kb_swing" },
+      { "exercise": "bear_hug_carry_light", "sets": 4, "reps": "100 ft", "load": "sandbag * 0.5, round 25" },
+      { "exercise": "walk", "reps": "20-30 min" }
+    ],
+    "deload": "All sessions at 0.6 * TM, reduced sets; skip sandbag_to_shoulder, sandbag_over_bar and axle_dl_doh; carries 2 sets.",
+    "test_week": {
+      "mon": "Trap bar deadlift — work to heavy single @ RPE 8. Log, then update next quarter TM (~85-90% of single or new clean 5RM).",
+      "wed": "Axle strict press — heavy single @ RPE 8. Update press TM.",
+      "sat": "Farmer's carry max distance at TM; sandbag over bar max reps in 60s. Log both, set next sandbag tier.",
+      "other_days": "rest"
+    }
+  },
+  "dietary_rules": {
+    "excluded_user": ["eggs", "all legumes: beans, lentils, peas, green beans, peanuts, peanut butter, soy, tofu, edamame"],
+    "excluded_gout": ["organ meats", "anchovies", "sardines", "herring", "mackerel", "mussels", "scallops", "game meat", "meat gravies/stocks", "beer"],
+    "limit": ["red meat (default ~0; pork tenderloin is the one planned exception)", "added fructose: juice, honey, large syrup doses", "alcohol other than beer: moderation at most", "total flesh ~8 oz cooked/day split across two meals"],
+    "emphasize": ["low-fat dairy (urate-lowering association)", "daily cherries (whole fruit over juice)", "vegetables unrestricted incl. spinach/asparagus/mushrooms — plant purines not flare-associated", "water 3.5-4 L"],
+    "flare_protocol_swap": "Drop dinner flesh serving; replace with 1 scoop whey + 1 cup Greek yogurt. Protein-neutral, near-zero purine."
+  }
+}

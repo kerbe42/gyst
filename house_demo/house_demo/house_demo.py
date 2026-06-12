@@ -295,6 +295,15 @@ from house_demo.states import (
     SettingsState,
     ShareHandoffState,
 )
+from house_demo.strongman_pages import (
+    strongman_today_page,
+    strongman_plan_page,
+    strongman_meals_page,
+    strongman_exercises_page,
+    strongman_progress_page,
+    strongman_settings_page,
+)
+from house_demo.strongman_state import StrongmanState
 
 app = rx.App(
     stylesheets=["/styles.css"],
@@ -336,6 +345,18 @@ app = rx.App(
 
 app.add_page(login_page, route="/login", title="Sign in")
 app.add_page(home_page, route="/", title="GYST", on_load=HomeState.on_load)
+app.add_page(strongman_today_page, route="/strongman", title="Strongman — Today",
+             on_load=StrongmanState.on_load_today)
+app.add_page(strongman_plan_page, route="/strongman/plan", title="Strongman — Plan",
+             on_load=StrongmanState.on_load_plan)
+app.add_page(strongman_meals_page, route="/strongman/meals", title="Strongman — Meals",
+             on_load=StrongmanState.on_load_meals)
+app.add_page(strongman_exercises_page, route="/strongman/exercises", title="Strongman — Lifts",
+             on_load=StrongmanState.on_load_exercises)
+app.add_page(strongman_progress_page, route="/strongman/progress", title="Strongman — Progress",
+             on_load=StrongmanState.on_load_progress)
+app.add_page(strongman_settings_page, route="/strongman/settings", title="Strongman — Settings",
+             on_load=StrongmanState.on_load_settings)
 app.add_page(
     chat_page,
     route="/chat",
