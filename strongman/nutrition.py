@@ -89,11 +89,15 @@ def scan_meals_for_violations() -> list[dict]:
     for m in MEALS["super_meals_extra"]:
         for it in m["items"]:
             check(m["name"], it["food"])
+    for m in MEALS.get("big_meals", []):
+        for it in m["items"]:
+            check(m["name"], it["food"])
     return violations
 
 
 # ---- meal recipes (what it is / what to make) ------------------------------
 _DINNER_SIDES_NOTE = "Every dinner plate includes the fixed sides listed above."
+BIG_MEALS_GROUP = "Big meals (1–2 a day)"
 
 
 def meal_recipes() -> list[dict]:
@@ -136,11 +140,29 @@ def meal_recipes() -> list[dict]:
                 "note": m.get("note"),
             }
         )
+    for m in MEALS.get("big_meals", []):
+        out.append(
+            {
+                "id": m["id"],
+                "name": m["name"],
+                "group": BIG_MEALS_GROUP,
+                "protein_g": m["protein_g"],
+                "kcal": m["kcal"],
+                "items": m["items"],
+                "tag": m.get("tag"),
+                "flesh_oz": m.get("flesh_oz"),
+            }
+        )
     return out
 
 
 def fixed_template_meals() -> list[dict]:
     return [m for m in meal_recipes() if m["group"] == "Fixed template"]
+
+
+def big_meals() -> list[dict]:
+    """Big composite meals for a 1-2 meal/day pattern (tagged dairy/flesh/omad)."""
+    return [m for m in meal_recipes() if m["group"] == BIG_MEALS_GROUP]
 
 
 def dinner_for_dow(dow: str) -> Optional[dict]:

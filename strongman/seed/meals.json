@@ -91,5 +91,59 @@
         { "food": "Cheddar", "amount": "30 g", "p": 7, "kcal": 120 },
         { "food": "Side salad + 1 tbsp olive oil", "amount": "", "p": 2, "kcal": 160 }
       ] }
+  ],
+  "big_meals_comment": "Large composite meals for a 1-2-meal/day pattern. Macros are sums of the same per-ingredient values used elsewhere — nothing new invented. tag: dairy (0 oz flesh) / flesh (uses the 8 oz/day cap) / omad (a full ~230 g day in one). Pair one dairy + one flesh for a 2-meal day to stay under the gout flesh cap.",
+  "big_meals": [
+    { "id": "loaded_protein_bowl", "name": "Loaded Protein Bowl", "tag": "dairy", "flesh_oz": 0, "protein_g": 126, "kcal": 1225,
+      "items": [
+        { "food": "Greek yogurt 0% plain", "amount": "1.5 cups (375 g)", "p": 38, "kcal": 220 },
+        { "food": "Whey protein", "amount": "2 scoops", "p": 48, "kcal": 240 },
+        { "food": "Cottage cheese 2%", "amount": "1 cup (225 g)", "p": 25, "kcal": 180 },
+        { "food": "Rolled oats, dry", "amount": "80 g", "p": 10, "kcal": 305 },
+        { "food": "Blueberries", "amount": "1 cup", "p": 1, "kcal": 85 },
+        { "food": "Walnuts", "amount": "30 g", "p": 4, "kcal": 195 }
+      ] },
+    { "id": "skyr_whey_bowl", "name": "Skyr & Whey Power Bowl", "tag": "dairy", "flesh_oz": 0, "protein_g": 134, "kcal": 1190,
+      "items": [
+        { "food": "Skyr 0%", "amount": "350 g", "p": 38, "kcal": 220 },
+        { "food": "Whey protein", "amount": "2 scoops", "p": 48, "kcal": 240 },
+        { "food": "Cottage cheese 2%", "amount": "1 cup (225 g)", "p": 25, "kcal": 180 },
+        { "food": "Milk 2%", "amount": "350 ml", "p": 12, "kcal": 175 },
+        { "food": "Rolled oats, dry", "amount": "80 g", "p": 10, "kcal": 305 },
+        { "food": "Mixed berries", "amount": "1 cup", "p": 1, "kcal": 70 }
+      ] },
+    { "id": "big_chicken_plate", "name": "Big Chicken Plate", "tag": "flesh", "flesh_oz": 8, "protein_g": 105, "kcal": 1097,
+      "items": [
+        { "food": "Chicken breast, cooked", "amount": "8 oz (226 g)", "p": 70, "kcal": 370 },
+        { "food": "Greek yogurt 0% (tzatziki/sauce)", "amount": "1 cup (250 g)", "p": 25, "kcal": 147 },
+        { "food": "Roasted potatoes", "amount": "350 g", "p": 7, "kcal": 325 },
+        { "food": "Big salad + 1 tbsp olive oil", "amount": "", "p": 2, "kcal": 160 },
+        { "food": "Cherries", "amount": "1 cup", "p": 1, "kcal": 95 }
+      ] },
+    { "id": "big_turkey_plate", "name": "Big Turkey Plate", "tag": "flesh", "flesh_oz": 8, "protein_g": 102, "kcal": 975,
+      "items": [
+        { "food": "Turkey breast, cooked", "amount": "8 oz (226 g)", "p": 68, "kcal": 310 },
+        { "food": "Cottage cheese 2%", "amount": "1 cup (225 g)", "p": 25, "kcal": 180 },
+        { "food": "Roasted potatoes", "amount": "350 g", "p": 7, "kcal": 325 },
+        { "food": "Side salad + 1 tbsp olive oil", "amount": "", "p": 2, "kcal": 160 }
+      ] },
+    { "id": "big_salmon_bowl", "name": "Big Salmon Bowl", "tag": "flesh", "flesh_oz": 6, "protein_g": 98, "kcal": 1050,
+      "items": [
+        { "food": "Salmon, cooked", "amount": "6 oz (170 g)", "p": 42, "kcal": 353 },
+        { "food": "Greek yogurt 0% sriracha drizzle", "amount": "1 cup (250 g)", "p": 25, "kcal": 147 },
+        { "food": "Rice, cooked", "amount": "1.5 cups", "p": 6, "kcal": 310 },
+        { "food": "Half avocado + cucumber", "amount": "", "p": 1, "kcal": 120 },
+        { "food": "Whey protein", "amount": "1 scoop", "p": 24, "kcal": 120 }
+      ] },
+    { "id": "omad_max_plate", "name": "OMAD Max Plate", "tag": "omad", "flesh_oz": 8, "protein_g": 242, "kcal": 1923,
+      "items": [
+        { "food": "Chicken breast, cooked", "amount": "8 oz (226 g)", "p": 70, "kcal": 370 },
+        { "food": "Greek yogurt 0% plain", "amount": "2 cups (500 g)", "p": 50, "kcal": 293 },
+        { "food": "Cottage cheese 2%", "amount": "2 cups (450 g)", "p": 50, "kcal": 360 },
+        { "food": "Whey protein", "amount": "2 scoops", "p": 48, "kcal": 240 },
+        { "food": "Rice, cooked", "amount": "1.5 cups", "p": 6, "kcal": 310 },
+        { "food": "Almonds", "amount": "30 g", "p": 6, "kcal": 175 },
+        { "food": "Milk 2%", "amount": "350 ml", "p": 12, "kcal": 175 }
+      ] }
   ]
 }

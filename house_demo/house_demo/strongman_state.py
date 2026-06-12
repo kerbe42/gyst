@@ -123,6 +123,7 @@ class RecipeRow(TypedDict, total=False):
     items_text: str
     prep: str
     note: str
+    tag: str
 
 
 class ExerciseRow(TypedDict, total=False):
@@ -231,6 +232,11 @@ class StrongmanState(rx.State):
     dinner_row: Optional[RecipeRow] = None
     library_rows: list[RecipeRow] = []
     library_open: bool = False
+    big_dairy_rows: list[RecipeRow] = []
+    big_flesh_rows: list[RecipeRow] = []
+    big_omad_rows: list[RecipeRow] = []
+    meals_per_day: int = 2
+    protein_per_meal: int = 0
     logged_meals: list[MealRow] = []
     custom_name: str = ""
     custom_protein: str = ""
@@ -558,6 +564,12 @@ class StrongmanState(rx.State):
         dinner = sm_nutrition.dinner_for_dow(dow_of(iso))
         self.dinner_row = _recipe_row(dinner) if dinner else None
         self.library_rows = [_recipe_row(m) for m in sm_nutrition.meal_recipes()]
+        self.meals_per_day = int(s.get("meals_per_day", 2) or 2)
+        self.protein_per_meal = round(self.protein_target / self.meals_per_day / 5) * 5
+        big = sm_nutrition.big_meals()
+        self.big_dairy_rows = [_recipe_row(m) for m in big if m.get("tag") == "dairy"]
+        self.big_flesh_rows = [_recipe_row(m) for m in big if m.get("tag") == "flesh"]
+        self.big_omad_rows = [_recipe_row(m) for m in big if m.get("tag") == "omad"]
         self.logged_meals = [MealRow(id=m["id"], name=m["name"] or m["meal_id"],
                                      macros=f"{int(m['protein_g'])} g · {int(m['kcal'])} kcal")
                              for m in sm_db.list_meals(iso)]
@@ -610,6 +622,11 @@ class StrongmanState(rx.State):
     @rx.event
     def toggle_library(self):
         self.library_open = not self.library_open
+
+    @rx.event
+    def set_meals_per_day(self, n: int):
+        sm_db.set_setting("meals_per_day", int(n))
+        self._refresh_meals()
 
     # ===================== Exercises =====================
     @rx.event
@@ -794,6 +811,7 @@ def _recipe_row(rec: dict) -> RecipeRow:
         id=rec["id"], name=rec["name"], group=rec.get("group", ""),
         macros=f"{int(rec['protein_g'])} g · {int(rec['kcal'])} kcal",
         items_text=items_text, prep=rec.get("prep") or "", note=rec.get("note") or "",
+        tag=rec.get("tag") or "",
     )
 
 

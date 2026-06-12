@@ -265,7 +265,8 @@ def strongman_meals_page() -> rx.Component:
                       rx.foreach(S.logged_meals, _logged_meal_row), spacing="1", width="100%", align="stretch"),
             rx.fragment(),
         ),
-        rx.heading("Today's plan — what to eat & make", size="3"),
+        _big_meals_block(),
+        rx.heading("Or the 6-small-meal standard day", size="3"),
         rx.text("Your standard day, plus tonight's dinner. " + S.template_total_label + " before dinner.",
                 size="2", color_scheme="gray"),
         rx.button("Log the standard day", on_click=S.log_standard_day, variant="soft", width="100%"),
@@ -292,6 +293,48 @@ def _logged_meal_row(m) -> rx.Component:
                                  variant="soft", color_scheme="gray", size="1"),
                   width="100%", align="center"),
         size="1", width="100%",
+    )
+
+
+def _big_meals_block() -> rx.Component:
+    def day_btn(n: int) -> rx.Component:
+        return rx.button(
+            str(n), size="2",
+            variant=rx.cond(S.meals_per_day == n, "solid", "soft"),
+            color_scheme=rx.cond(S.meals_per_day == n, "indigo", "gray"),
+            on_click=S.set_meals_per_day(n),
+        )
+
+    def group(label: str, rows) -> rx.Component:
+        return rx.cond(
+            rows,
+            rx.vstack(
+                rx.text(label, size="1", weight="bold", color_scheme="gray"),
+                rx.foreach(rows, _recipe_card),
+                spacing="1", width="100%", align="stretch",
+            ),
+            rx.fragment(),
+        )
+
+    return rx.vstack(
+        rx.heading("Big meals — 1 or 2 a day", size="3"),
+        rx.card(
+            rx.vstack(
+                rx.hstack(rx.text("Meals today", weight="medium"), rx.spacer(),
+                          day_btn(1), day_btn(2), width="100%", align="center"),
+                rx.text("Target " + S.protein_target.to(str) + " g protein · "
+                        + S.meals_per_day.to(str) + " meal(s) → ~" + S.protein_per_meal.to(str)
+                        + " g each.", size="2"),
+                rx.text("Pair one dairy + one flesh meal for a 2-meal day — keeps you under the "
+                        "8 oz/day flesh cap. Tap a meal for the recipe.", size="1", color_scheme="gray"),
+                spacing="2", width="100%",
+            ),
+            width="100%",
+        ),
+        group("Dairy-forward (no flesh)", S.big_dairy_rows),
+        group("With flesh (uses your 8 oz/day)", S.big_flesh_rows),
+        group("One meal (OMAD — a full day in one)", S.big_omad_rows),
+        spacing="2", width="100%", align="stretch",
     )
 
 

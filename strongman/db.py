@@ -104,6 +104,7 @@ _SETTING_DEFAULTS = {
     "equipment": {"sandbag": False, "axle": False},
     "pinned_demos": {},
     "units": "lb",
+    "meals_per_day": 2,
 }
 
 
