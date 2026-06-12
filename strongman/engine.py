@@ -93,6 +93,35 @@ def target_weight(lift_id: str, week: int, overrides: Optional[TmOverrides] = No
     return min(raw, cap) if cap is not None else raw
 
 
+def lift_trajectory(lift_id: str, overrides: Optional[TmOverrides] = None) -> dict:
+    """Full 52-week projected climb: a per-week working-weight series (for
+    charting the staircase) plus a per-quarter summary (TM + top build set).
+    Honors saved per-quarter TM overrides. Faithful port of progression.ts
+    ``liftTrajectory``."""
+    overrides = overrides or {}
+    weekly = [
+        {
+            "week": week,
+            "weight": target_weight(lift_id, week, overrides),
+            "type": week_type(week),
+            "quarter": quarter_of(week),
+        }
+        for week in range(1, data.TOTAL_WEEKS + 1)
+    ]
+    quarters = []
+    for q in range(1, math.ceil(data.TOTAL_WEEKS / 13) + 1):
+        # The quarter's top build set is its last build week (wq 11, k=9).
+        top_build_week = (q - 1) * 13 + 11
+        quarters.append(
+            {
+                "quarter": q,
+                "tm": resolve_tm(lift_id, q, overrides),
+                "top_build_set": target_weight(lift_id, top_build_week, overrides),
+            }
+        )
+    return {"weekly": weekly, "quarters": quarters}
+
+
 # ---- dates (calendar dates, ISO YYYY-MM-DD) --------------------------------
 # Python date.weekday(): Monday == 0.
 _DOW_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]

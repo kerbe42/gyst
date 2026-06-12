@@ -25,6 +25,7 @@ from strongman.engine import (  # noqa: E402
     build_index,
     day_for_date,
     dow_of,
+    lift_trajectory,
     mround,
     quarter_of,
     target_weight,
@@ -90,6 +91,28 @@ def test_cap_and_overrides():
     tms = {"trap_bar_deadlift": [405, None, None, None]}
     eq(target_weight("trap_bar_deadlift", 1, tms), 405, "trap override q1 wk1")
     eq(target_weight("trap_bar_deadlift", 14, tms), 425, "trap override chains q2 wk14")
+
+
+def test_lift_trajectory():
+    t = lift_trajectory("trap_bar_deadlift")
+    eq(len(t["weekly"]), 52, "trajectory weekly length")
+    eq(t["weekly"][0], {"week": 1, "weight": 315, "type": "build", "quarter": 1}, "wk1 point")
+    eq(t["weekly"][3], {"week": 4, "weight": 190, "type": "deload", "quarter": 1}, "wk4 deload point")
+    eq(t["weekly"][10], {"week": 11, "weight": 395, "type": "build", "quarter": 1}, "wk11 top build point")
+    eq(t["weekly"][12]["type"], "test", "wk13 test type")
+    eq(len(t["quarters"]), 4, "4 quarter milestones")
+    eq(t["quarters"][0], {"quarter": 1, "tm": 315, "top_build_set": 395}, "Q1 milestone")
+    eq(t["quarters"][3], {"quarter": 4, "tm": 360, "top_build_set": 440}, "Q4 milestone")
+    tms = {"trap_bar_deadlift": [405, None, None, None]}
+    t2 = lift_trajectory("trap_bar_deadlift", tms)
+    eq(t2["weekly"][0]["weight"], 405, "override wk1")
+    eq(t2["quarters"][0]["tm"], 405, "override Q1 tm")
+    eq(t2["quarters"][1]["tm"], 425, "override chains Q2 tm")
+    sc = lift_trajectory("suitcase_carry")
+    eq(max(p["weight"] for p in sc["weekly"]), 90, "suitcase capped at 90")
+    sb = lift_trajectory("sandbag")
+    q1w = {p["weight"] for p in sb["weekly"] if p["quarter"] == 1}
+    eq(len(q1w), 1, "sandbag flat within quarter")
 
 
 def test_calendar():

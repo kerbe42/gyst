@@ -23,6 +23,7 @@ from strongman.engine import (
     day_index_of,
     dow_of,
     iso_for_day_index,
+    lift_trajectory,
     quarter_of,
     resolve_tm,
     today_iso,
@@ -159,6 +160,16 @@ class Point(TypedDict):
     y: float
 
 
+class LiftOpt(TypedDict):
+    id: str
+    name: str
+
+
+class QuarterRow(TypedDict):
+    label: str
+    top: int
+
+
 def _item_row(item: dict, logged: list[dict]) -> ItemRow:
     my = [s for s in logged if s["exercise_id"] == item["exercise_id"]]
     summary = ", ".join(
@@ -257,6 +268,12 @@ class StrongmanState(rx.State):
     top_series: list[Point] = []
     protein_series: list[Point] = []
     tm_rows: list[TmRow] = []
+    # Projected 52-week climb (trajectory view).
+    proj_lift: str = ""
+    proj_lift_options: list[LiftOpt] = []
+    proj_series: list[Point] = []
+    proj_quarter_rows: list[QuarterRow] = []
+    current_week: int = 0
 
     # ---- Settings ----
     bodyweight_input: str = ""
@@ -688,7 +705,29 @@ class StrongmanState(rx.State):
         self.logged_ex_options = sm_db.logged_exercise_ids()
         if self.logged_ex_options and not self.progress_ex:
             self.progress_ex = self.logged_ex_options[0]
+        self.proj_lift_options = [LiftOpt(id=l["id"], name=l["name"]) for l in sm_data.all_lifts()]
+        if self.proj_lift_options and not self.proj_lift:
+            self.proj_lift = self.proj_lift_options[0]["id"]
+        today = day_for_date(today_iso())
+        self.current_week = today["week"] if today else 0
         self._refresh_progress()
+        self._refresh_projection()
+
+    def _refresh_projection(self):
+        if not self.proj_lift:
+            self.proj_series = []
+            self.proj_quarter_rows = []
+            return
+        traj = lift_trajectory(self.proj_lift, sm_db.get_tms())
+        self.proj_series = [Point(x=f"W{p['week']}", y=p["weight"]) for p in traj["weekly"]]
+        self.proj_quarter_rows = [
+            QuarterRow(label=f"Q{qm['quarter']}", top=qm["top_build_set"]) for qm in traj["quarters"]
+        ]
+
+    @rx.event
+    def set_proj_lift(self, v: str):
+        self.proj_lift = v
+        self._refresh_projection()
 
     def _refresh_progress(self):
         self.bw_series = [Point(x=b["date"][5:], y=b["lb"]) for b in sm_db.list_bodyweight()]

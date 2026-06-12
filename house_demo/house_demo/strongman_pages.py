@@ -451,6 +451,37 @@ def strongman_progress_page() -> rx.Component:
             ),
             width="100%",
         ),
+        rx.card(
+            rx.vstack(
+                rx.heading("Projected climb (52 weeks)", size="3"),
+                rx.select.root(
+                    rx.select.trigger(width="100%"),
+                    rx.select.content(
+                        rx.foreach(
+                            S.proj_lift_options,
+                            lambda o: rx.select.item(o["name"], value=o["id"]),
+                        ),
+                    ),
+                    value=S.proj_lift,
+                    on_change=S.set_proj_lift,
+                ),
+                _line_chart(S.proj_series),
+                rx.hstack(rx.foreach(S.proj_quarter_rows, _proj_quarter_cell), spacing="1", width="100%"),
+                rx.text(
+                    "Top working-set weight across the plan. Saw-teeth are deload weeks; each quarter "
+                    "peaks higher, and the line redraws upward as you log heavier test weeks.",
+                    size="1", color_scheme="gray",
+                ),
+                rx.cond(
+                    S.current_week > 0,
+                    rx.text("You're in week ", S.current_week.to(str), " of 52.",
+                            size="1", color_scheme="gray"),
+                    rx.fragment(),
+                ),
+                spacing="2", width="100%",
+            ),
+            width="100%",
+        ),
         rx.card(rx.vstack(rx.heading("Weekly protein average", size="3"), _line_chart(S.protein_series),
                           spacing="2", width="100%"), width="100%"),
         rx.card(rx.vstack(rx.heading("Training-max progression", size="3"),
@@ -470,6 +501,16 @@ def _line_chart(series) -> rx.Component:
             data=series, height=160, width="100%",
         ),
         rx.text("No data yet.", size="2", color_scheme="gray"),
+    )
+
+
+def _proj_quarter_cell(row) -> rx.Component:
+    return rx.vstack(
+        rx.text(row["label"], size="1", color_scheme="gray"),
+        rx.text(row["top"].to(str), weight="bold", size="3"),
+        rx.text("top set", size="1", color_scheme="gray"),
+        spacing="0", align="center", flex="1",
+        padding_y="6px", background_color=rx.color("gray", 3), border_radius="6px",
     )
 
 
