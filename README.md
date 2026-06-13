@@ -22,10 +22,14 @@ Take a photo of a shelf — the LLM identifies what's on it and files each item 
 The fastest way to run GYST end-to-end is the bundled Dockerfile:
 
 ```bash
-cd docker
-# REQUIRED if you'll visit the page from anything other than the
-# docker host itself. Bake the public URL into the JS bundle:
+git clone https://github.com/kerbe42/gyst.git
+cd gyst/docker
+
+# REQUIRED if the page will be opened from anywhere other than the
+# docker host itself. This URL gets compiled into the JS bundle as
+# the WebSocket and API target.
 export GYST_PUBLIC_ORIGIN="https://your-host.example.com:10443"
+
 docker compose up -d --build
 # wait ~90s for Reflex to compile, then:
 open "$GYST_PUBLIC_ORIGIN/"
@@ -33,20 +37,59 @@ open "$GYST_PUBLIC_ORIGIN/"
 
 The container ships its own Caddy (TLS, security headers, cache-control) and a single Reflex/Granian backend. SQLite DBs and photos live in the `gyst-docker-data` named volume.
 
-> **Important**: `GYST_PUBLIC_ORIGIN` is compiled into the frontend bundle. If you don't set it to the exact URL users will visit, the page loads but the splash screen stays forever (the WebSocket can't connect). Default is `https://localhost:10443` which only works on the docker host itself. To change it later, edit `docker-compose.yml` or the env, then `docker compose down && docker compose up -d` (recreate forces a recompile).
->
-> The first visit shows a TLS warning because the container mints certs from its own internal CA. Accept once and the browser remembers.
->
-> If you're running on a host that already runs Caddy with `tls internal`, the compose file optionally bind-mounts the host's CA so certs chain to a trusted root. See `docker/docker-compose.yml`.
+> **Important** — `GYST_PUBLIC_ORIGIN` is compiled into the frontend bundle on first boot. If it doesn't match the URL users actually type, the page loads but the splash screen never clears (the WebSocket can't connect). The default `https://localhost:10443` only works on the docker host itself. To change it later, edit `docker-compose.yml`, then `docker compose down && docker compose up -d` — recreating the container forces a recompile.
 
-Useful lifecycle commands:
+### First visit
+
+1. Browser TLS warning — the container mints certs from its own self-signed CA. Accept once and your browser remembers.
+2. Empty databases — there's no app yet, you need to create the first admin. Open Settings → Users, or create one directly:
+   ```bash
+   docker exec -it gyst python -c "from auth.db import init_db, create_user; init_db(); create_user('admin', 'change-me', is_admin=True)"
+   ```
+3. Pick a currency + time zone in Settings → Appearance.
+4. Paste your Anthropic or OpenAI key in Settings → API to enable JARVIS and photo recognition.
+
+### Lifecycle
 
 ```bash
 docker compose logs -f          # live tail
 docker compose restart          # no rebuild
 docker compose down             # stop (keeps data volume)
 docker compose down -v          # ALSO drop the data volume (fresh DBs)
+docker compose up -d --build    # rebuild after pulling new code
 ```
+
+### Update to a newer release
+
+```bash
+cd gyst                         # repo root
+git pull
+cd docker
+docker compose up -d --build    # picks up new code; data volume preserved
+```
+
+### Skip the TLS warning
+
+If you already run Caddy on the same host with `tls internal`, uncomment the host-CA bind mount in `docker-compose.yml`. The container will seed its CA from yours on first start, so any browser that already trusts your host's CA accepts the container cert without a warning.
+
+Otherwise: pull the container's CA out once and trust it system-wide:
+
+```bash
+sudo docker cp gyst:/app/data/caddy-data/caddy/pki/authorities/local/root.crt \
+  /usr/local/share/ca-certificates/gyst-container.crt
+sudo update-ca-certificates
+```
+
+### Backup + restore
+
+The whole app state lives in the `gyst-docker-data` named volume. Tar it out:
+
+```bash
+docker run --rm -v gyst-docker-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/gyst-backup-$(date +%F).tgz -C /data .
+```
+
+Restore on a fresh host: `docker volume create gyst-docker-data`, extract the tarball into it, then `docker compose up -d`.
 
 ## Quickstart — local development
 
@@ -55,14 +98,14 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cd house_demo
 reflex run --env prod --loglevel info
-# backend on http://127.0.0.1:3000 (Reflex default)
+# backend on http://127.0.0.1:3003
 ```
 
 For full functionality you'll also want:
 
-- An LLM API key (Anthropic recommended; OpenAI also supported). Set via Settings → API once the app is up, or seed `app_settings/db.py` directly.
-- A reverse proxy with TLS in front (Caddy, nginx, traefik). PWA features, camera, microphone, and the service worker all require HTTPS.
-- VAPID keys for web push (optional). Generate via `python -m notifications.vapid_setup` and paste into Settings → API.
+- An **LLM API key** (Anthropic recommended; OpenAI also supported). Set via Settings → API once the app is up.
+- A **reverse proxy with TLS in front** (Caddy, nginx, traefik). PWA features, camera, microphone, and the service worker all require HTTPS.
+- **VAPID keys for web push** — auto-generated on first run of `notifications.db.ensure_vapid_keys()`; copy the public key into Settings → API → Push to subscribe phones.
 
 ## Architecture
 
@@ -89,13 +132,29 @@ The repo ships a stdlib-only invariant suite at `tests/test_security_review.py` 
 - **F7** — Cross-module permission scrubbing on the home dashboard
 - **F8** — Caddy header regressions (HSTS, no-wildcard CSP, HTML `no-store`, /assets/* still cacheable)
 
-Run with:
+Run it:
 
 ```bash
 PYTHONPATH=. python tests/test_security_review.py
 ```
 
 Authentication is PBKDF2-SHA256 at 600k iterations with cookie-backed sessions (30 days, HttpOnly + Secure + SameSite=Lax). Outbound image fetches go through an SSRF allow-list. Uploaded JPEGs are re-encoded via Pillow with `_save_oriented_jpeg` to strip EXIF and bound pixel size.
+
+A ZAP scan against the container has 0 highs, 0 unaddressed mediums, 0 unaddressed lows. The 4 remaining medium notices (`script-src unsafe-inline`, `script-src unsafe-eval`, `style-src unsafe-inline`) are Reflex / Radix framework limitations — fixing them requires forking the framework to add nonce / hash support.
+
+## Troubleshooting
+
+**Splash screen stays forever.** `GYST_PUBLIC_ORIGIN` doesn't match the URL you're hitting. Edit `docker-compose.yml`, then `docker compose down && docker compose up -d` to force a recompile.
+
+**`SEC_ERROR_BAD_SIGNATURE` in Firefox.** Your browser already trusts a different CA for the same hostname (e.g. you also run host Caddy on `:443`). Either trust the container's CA system-wide (see "Skip the TLS warning" above), or uncomment the host-CA bind mount so both use the same root.
+
+**`502 Bad Gateway` on first load.** Reflex still compiling. Tail `docker compose logs -f` and wait for `App running at: http://127.0.0.1:3003/` (~90s on first boot).
+
+**Web Speech mic permission denied.** In a Chrome PWA (Android), tap → Settings → Site settings → Microphone → Allow. The padlock-route only works in a regular browser tab.
+
+**Stuck on an old build after deploy.** The service worker is caching. Open DevTools → Application → Service Workers → Unregister, then refresh. Or visit `<your-origin>/?nocache=1` once — `pwa-register.js` auto-detects build mismatch and purges the SW cache.
+
+**JARVIS isn't responding.** Settings → API → make sure both the provider (Anthropic / OpenAI) and a valid key are set. Server logs show the actual error: `docker compose logs -f | grep -i "anthropic\|openai"`.
 
 ## Documentation
 
@@ -127,21 +186,21 @@ Same content as Python source: see `house_demo/house_demo/pages.py` → `help_pa
 
 ## Stack at a glance
 
-- Python 3.12, Reflex 0.9.2, Granian, Caddy
+- Python 3.12, Reflex 0.9, Granian, Caddy
 - SQLite (one DB per module, no ORM, plain sqlite3)
 - Anthropic + OpenAI SDKs (`claude-haiku-4-5` default)
 - Open Food Facts, UPCitemdb, Open Library, ZXing (browser fallback), native BarcodeDetector when available
 - Frankfurter FX API (24h cached)
 - Web Speech API (in + out), Web Push (VAPID), service worker, share-target
 
+## AI involvement
+
+This was built with **Claude** (Anthropic's Claude Code agent) across many sessions. I drove the requirements, UX decisions, security model, and what to build; Claude wrote most of the actual code. I tested everything, broke things on purpose, fixed bugs together with it, and made all the deploy / security calls. Being honest about that up front.
+
 ## License
 
 **PolyForm Noncommercial 1.0.0** — see [LICENSE](LICENSE).
 
-You can run it for your own household, study it, modify it, fork it, share it with friends, use it in a charity / school / research project. You **cannot** sell it, charge for hosting it, embed it in a commercial product, or use it to make money. No warranty.
+You can run it for your own household, study it, modify it, fork it, share it with friends, use it in a charity / school / research project. You **cannot** sell it, charge for hosting it, embed it in a commercial product, or use it to make money.
 
 If you want a commercial license, open an issue.
-
----
-
-*Built for one household, but designed to be cloned and reshaped for yours.*
