@@ -22,7 +22,7 @@
 // MUST match BUILD_VERSION in /assets/pwa-register.js. The page-side script
 // fetches /sw.js with cache:'no-store' and compares this string; on mismatch
 // it forces a hard reset (unregister + caches.delete + reload).
-const BUILD_VERSION = "20260612c";
+const BUILD_VERSION = "20260612d";
 const CACHE_VERSION = "v5";
 // Caching policy: when NETWORK_ONLY is true, the fetch handler is a
 // transparent pass-through to the network. The app currently runs in

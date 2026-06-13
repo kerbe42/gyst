@@ -28,6 +28,7 @@ from strongman.engine import (
     resolve_tm,
     today_iso,
     warmup_ramp,
+    warmup_ramp_plated,
 )
 from strongman.sessions import session_for
 
@@ -43,6 +44,10 @@ def _fmt_date(iso: str) -> str:
 
 def _fmt_weight(lb) -> str:
     return "—" if lb is None else f"{int(lb) if float(lb).is_integer() else lb} lb"
+
+
+def _fmt_plate(p) -> str:
+    return str(int(p)) if float(p).is_integer() else str(p)
 
 
 def _prescription(item: dict) -> str:
@@ -179,8 +184,20 @@ def _item_row(item: dict, logged: list[dict]) -> ItemRow:
         for s in my
     )
     w = item.get("weight_lb")
-    ramp = warmup_ramp(w) if w is not None else []
-    warmup_text = " · ".join(f"{int(s['weight'])}×{s['reps']}" for s in ramp)
+    if w is None:
+        ramp = []
+    elif item.get("lift_id") in sm_data.LOADING.get("plate_aware_lifts", []):
+        ramp = warmup_ramp_plated(w, sm_data.LOADING["trap_bar_lb"], sm_data.LOADING["plate_pairs_lb"])
+    else:
+        ramp = warmup_ramp(w)
+    parts = []
+    for s in ramp:
+        base = f"{int(s['weight'])}×{s['reps']}"
+        ps = s.get("per_side")
+        if ps:
+            base += " (" + "+".join(_fmt_plate(p) for p in ps) + "/side)"
+        parts.append(base)
+    warmup_text = " · ".join(parts)
     return ItemRow(
         exercise_id=item["exercise_id"],
         name=item.get("name") or item["exercise_id"],

@@ -148,6 +148,42 @@ def warmup_sets(lift_id: str, week: int, overrides: Optional[TmOverrides] = None
     return warmup_ramp(target_weight(lift_id, week, overrides or {}))
 
 
+def _greedy_plates(per_side: float, plates: list) -> list:
+    """Break a per-side weight into plates, largest first. Exact for the
+    standard 45/25/10/5/2.5 set."""
+    out: list = []
+    rem = per_side
+    for p in sorted(plates, reverse=True):
+        while rem >= p - 1e-9:
+            out.append(p)
+            rem -= p
+    return out
+
+
+def warmup_ramp_plated(working_weight: float, bar_lb: float, plates: list) -> list[dict]:
+    """Warm-up ramp for a lift on a real bar: each step snaps to a weight you can
+    actually load (bar + a symmetric plate pair), rounding the per-side load to
+    the nearest 5 lb so you aren't fiddling with tiny plates, and carries the
+    per-side plate loadout. Skips anything at/below the empty bar or at/above the
+    working weight, and collapses duplicates. Port of progression.ts
+    ``warmupRampPlated``."""
+    out: list[dict] = []
+    last = 0
+    for pct, reps in _WARMUP_STEPS:
+        per_side_raw = (working_weight * pct - bar_lb) / 2
+        if per_side_raw <= 0:
+            continue
+        per_side = round(per_side_raw / 5) * 5
+        if per_side <= 0:
+            continue
+        weight = int(bar_lb + 2 * per_side)
+        if weight >= working_weight or weight <= last:
+            continue
+        out.append({"weight": weight, "reps": reps, "per_side": _greedy_plates(per_side, plates)})
+        last = weight
+    return out
+
+
 # ---- dates (calendar dates, ISO YYYY-MM-DD) --------------------------------
 # Python date.weekday(): Monday == 0.
 _DOW_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]

@@ -30,6 +30,7 @@ from strongman.engine import (  # noqa: E402
     quarter_of,
     target_weight,
     warmup_ramp,
+    warmup_ramp_plated,
     warmup_sets,
     week_days,
     week_in_quarter,
@@ -141,6 +142,21 @@ def test_warmup_sets():
                 check(s["weight"] < working, f"{lid} wk{wk} warmup below working")
                 if i > 0:
                     check(ramp[i]["weight"] > ramp[i - 1]["weight"], f"{lid} wk{wk} strictly increasing")
+
+
+def test_warmup_ramp_plated():
+    plates = [45, 25, 10, 5, 2.5]
+    eq(warmup_ramp_plated(315, 54, plates),
+       [{"weight": 124, "reps": 5, "per_side": [25, 10]},
+        {"weight": 174, "reps": 4, "per_side": [45, 10, 5]},
+        {"weight": 224, "reps": 3, "per_side": [45, 25, 10, 5]},
+        {"weight": 264, "reps": 2, "per_side": [45, 45, 10, 5]}],
+       "plated warmup 315 on 54lb bar")
+    for working in (315, 235, 405):
+        for s in warmup_ramp_plated(working, 54, plates):
+            check(54 + 2 * sum(s["per_side"]) == s["weight"], f"{working} loadable")
+            check(s["weight"] < working, f"{working} below working")
+            check(s["weight"] > 54, f"{working} above bar")
 
 
 def test_calendar():
