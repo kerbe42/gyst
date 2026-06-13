@@ -12,7 +12,14 @@
   },
   "loading": {
     "trap_bar_lb": 54,
-    "plate_pairs_lb": [45, 25, 10, 5, 2.5],
+    "plates": [
+      { "lb": 45, "count": 6 },
+      { "lb": 35, "count": 4 },
+      { "lb": 25, "count": 4 },
+      { "lb": 10, "count": 6 },
+      { "lb": 5, "count": 6 },
+      { "lb": 2.5, "count": 4 }
+    ],
     "plate_aware_lifts": ["trap_bar_deadlift", "farmers_carry"]
   },
   "weekly_schedule": {

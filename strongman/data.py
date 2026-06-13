@@ -32,7 +32,7 @@ CREATINE_G: int = PLAN["athlete"]["creatine_g_per_day"]        # 10
 REP_SCHEMES: dict = PLAN["rep_schemes"]
 LOADING: dict = PLAN.get(
     "loading",
-    {"trap_bar_lb": 45, "plate_pairs_lb": [45, 25, 10, 5, 2.5], "plate_aware_lifts": []},
+    {"trap_bar_lb": 45, "plates": [], "plate_aware_lifts": []},
 )
 DIETARY_RULES: dict = PLAN["dietary_rules"]
 FLARE_PROTOCOL_SWAP: str = PLAN["dietary_rules"]["flare_protocol_swap"]

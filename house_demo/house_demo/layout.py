@@ -17,7 +17,7 @@ from house_demo.states import AuthState, OmniboxState, UIState, UndoState
 # Bumped on every prod push so the on-screen build banner gives us a single
 # read-it-on-the-phone confirmation that fresh code is actually loaded.
 # Keep in sync with BUILD_VERSION in assets/pwa-register.js + assets/sw.js.
-BUILD_VERSION = "20260612d"
+BUILD_VERSION = "20260612e"
 
 
 def _build_banner() -> rx.Component:

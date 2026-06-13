@@ -187,7 +187,7 @@ def _item_row(item: dict, logged: list[dict]) -> ItemRow:
     if w is None:
         ramp = []
     elif item.get("lift_id") in sm_data.LOADING.get("plate_aware_lifts", []):
-        ramp = warmup_ramp_plated(w, sm_data.LOADING["trap_bar_lb"], sm_data.LOADING["plate_pairs_lb"])
+        ramp = warmup_ramp_plated(w, sm_data.LOADING["trap_bar_lb"], sm_data.LOADING["plates"])
     else:
         ramp = warmup_ramp(w)
     parts = []

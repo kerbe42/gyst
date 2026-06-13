@@ -145,18 +145,22 @@ def test_warmup_sets():
 
 
 def test_warmup_ramp_plated():
-    plates = [45, 25, 10, 5, 2.5]
-    eq(warmup_ramp_plated(315, 54, plates),
-       [{"weight": 124, "reps": 5, "per_side": [25, 10]},
+    stock = [{"lb": 45, "count": 6}, {"lb": 35, "count": 4}, {"lb": 25, "count": 4},
+             {"lb": 10, "count": 6}, {"lb": 5, "count": 6}, {"lb": 2.5, "count": 4}]
+    eq(warmup_ramp_plated(315, 54, stock),
+       [{"weight": 124, "reps": 5, "per_side": [35]},
         {"weight": 174, "reps": 4, "per_side": [45, 10, 5]},
-        {"weight": 224, "reps": 3, "per_side": [45, 25, 10, 5]},
+        {"weight": 224, "reps": 3, "per_side": [45, 35, 5]},
         {"weight": 264, "reps": 2, "per_side": [45, 45, 10, 5]}],
        "plated warmup 315 on 54lb bar")
     for working in (315, 235, 405):
-        for s in warmup_ramp_plated(working, 54, plates):
+        for s in warmup_ramp_plated(working, 54, stock):
             check(54 + 2 * sum(s["per_side"]) == s["weight"], f"{working} loadable")
             check(s["weight"] < working, f"{working} below working")
             check(s["weight"] > 54, f"{working} above bar")
+    # Quantity cap: one pair of 45s -> at most one 45 per side.
+    for s in warmup_ramp_plated(500, 54, [{"lb": 45, "count": 2}]):
+        check(sum(1 for p in s["per_side"] if p == 45) <= 1, "45 capped at 1/side")
 
 
 def test_calendar():

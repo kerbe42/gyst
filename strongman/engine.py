@@ -148,38 +148,45 @@ def warmup_sets(lift_id: str, week: int, overrides: Optional[TmOverrides] = None
     return warmup_ramp(target_weight(lift_id, week, overrides or {}))
 
 
-def _greedy_plates(per_side: float, plates: list) -> list:
-    """Break a per-side weight into plates, largest first. Exact for the
-    standard 45/25/10/5/2.5 set."""
+def _greedy_plates(per_side_target: float, stock: list) -> list:
+    """Fill a per-side weight from largest plate down, never using more of a size
+    than is available per side (floor(count/2)). `stock` = [{"lb", "count"}] of
+    TOTAL plates owned. The returned plates' sum may fall short if you run out."""
     out: list = []
-    rem = per_side
-    for p in sorted(plates, reverse=True):
-        while rem >= p - 1e-9:
-            out.append(p)
-            rem -= p
+    rem = per_side_target
+    for plate in sorted(stock, key=lambda p: p["lb"], reverse=True):
+        avail = plate["count"] // 2
+        while avail > 0 and rem >= plate["lb"] - 1e-9:
+            out.append(plate["lb"])
+            rem -= plate["lb"]
+            avail -= 1
     return out
 
 
-def warmup_ramp_plated(working_weight: float, bar_lb: float, plates: list) -> list[dict]:
+def warmup_ramp_plated(working_weight: float, bar_lb: float, stock: list) -> list[dict]:
     """Warm-up ramp for a lift on a real bar: each step snaps to a weight you can
     actually load (bar + a symmetric plate pair), rounding the per-side load to
-    the nearest 5 lb so you aren't fiddling with tiny plates, and carries the
-    per-side plate loadout. Skips anything at/below the empty bar or at/above the
-    working weight, and collapses duplicates. Port of progression.ts
-    ``warmupRampPlated``."""
+    the nearest 5 lb, then loads it from the plates you own (capped by quantity
+    per side). The set's weight reflects what's truly loadable. Skips anything
+    at/below the empty bar or at/above the working weight, collapses duplicates.
+    Port of progression.ts ``warmupRampPlated``."""
     out: list[dict] = []
     last = 0
     for pct, reps in _WARMUP_STEPS:
         per_side_raw = (working_weight * pct - bar_lb) / 2
         if per_side_raw <= 0:
             continue
-        per_side = round(per_side_raw / 5) * 5
-        if per_side <= 0:
+        per_side_target = round(per_side_raw / 5) * 5
+        if per_side_target <= 0:
             continue
-        weight = int(bar_lb + 2 * per_side)
+        per_side = _greedy_plates(per_side_target, stock)
+        loaded = sum(per_side)
+        if loaded <= 0:
+            continue
+        weight = int(bar_lb + 2 * loaded)
         if weight >= working_weight or weight <= last:
             continue
-        out.append({"weight": weight, "reps": reps, "per_side": _greedy_plates(per_side, plates)})
+        out.append({"weight": weight, "reps": reps, "per_side": per_side})
         last = weight
     return out
 
