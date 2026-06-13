@@ -13,7 +13,8 @@ Take a photo of a shelf — the LLM identifies what's on it and files each item 
 | **Food (unified)** | Pantry, shopping list, meal plan in one nav section. Pick a recipe and missing ingredients flow automatically to the shopping list. |
 | **Notes** | Quick-add by Enter, longer notes with body + mic dictation + "Polish with AI." Pin to top. |
 | **Appointments** | Calendar with home-page surfacing of next-24-hour events. |
-| **JARVIS assistant** | Anthropic Claude or OpenAI, 40+ tools spanning every entity. Voice in (Web Speech API), voice out (Web Speech Synthesis) with conversation-loop auto-restart. |
+| **Strongman training** | 52-week strongman program with progression math, RPE-capped test weeks, and a nutrition tracker tuned for a 1–2 big-meals-a-day pattern. Ported from a standalone TS PWA, same test vectors. |
+| **JARVIS assistant** | Anthropic Claude or OpenAI, 40+ tools spanning every entity (inventory, chores, meals, notes, appointments, training). Voice in (Web Speech API), voice out (Web Speech Synthesis) with conversation-loop auto-restart. |
 | **PWA** | Manifest, service worker, VAPID push, share-target intent (share a photo from another app → GYST captures it). |
 | **Admin settings** | Users, roles, rooms, announcements, audit log, currency + time zone, LLM provider + API keys. |
 
@@ -117,7 +118,7 @@ Browser ──HTTPS──▶ Caddy ──HTTP──▶ Reflex/Granian ──▶ 
                                         └──▶ Frankfurter (FX rates)
 ```
 
-**Reflex 0.9** for the frontend (Python → React + WebSockets), served by **Granian** (Rust ASGI). **Caddy** terminates TLS, sets security headers, and routes cache buckets. Eleven SQLite databases, one per concern (`inventory`, `notes`, `chores`, `groceries`, `meals`, `appointments`, `announcements`, `auth`, `app_settings`, `audit`, `push`). All state local to the host — no cloud unless you point the LLM at one.
+**Reflex 0.9** for the frontend (Python → React + WebSockets), served by **Granian** (Rust ASGI). **Caddy** terminates TLS, sets security headers, and routes cache buckets. Twelve SQLite databases, one per concern (`inventory`, `notes`, `chores`, `groceries`, `meals`, `appointments`, `announcements`, `auth`, `app_settings`, `audit`, `push`, `strongman`). All state local to the host — no cloud unless you point the LLM at one.
 
 ## Security
 
@@ -177,6 +178,7 @@ Same content as Python source: see `house_demo/house_demo/pages.py` → `help_pa
 ├── inventory/ notes/ chores/    # one module per concern, each has db.py
 ├── groceries/ meals/ appointments/
 ├── announcements/ auth/ app_settings/ notifications/
+├── strongman/                   # 52-week program + nutrition engine
 ├── assistant/                   # JARVIS: chat.py + tools.py + memory
 ├── tests/test_security_review.py
 ├── deploy/                      # sync-to-prod.sh + systemd units
