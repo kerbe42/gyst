@@ -29,6 +29,8 @@ from strongman.engine import (  # noqa: E402
     mround,
     quarter_of,
     target_weight,
+    warmup_ramp,
+    warmup_sets,
     week_days,
     week_in_quarter,
     week_type,
@@ -113,6 +115,32 @@ def test_lift_trajectory():
     sb = lift_trajectory("sandbag")
     q1w = {p["weight"] for p in sb["weekly"] if p["quarter"] == 1}
     eq(len(q1w), 1, "sandbag flat within quarter")
+
+
+def test_warmup_sets():
+    # warmup_ramp builds straight from a working weight (what the UI uses).
+    eq(warmup_ramp(315),
+       [{"weight": 130, "reps": 5}, {"weight": 170, "reps": 4},
+        {"weight": 220, "reps": 3}, {"weight": 270, "reps": 2}], "warmup_ramp 315")
+    eq(warmup_ramp(40), [{"weight": 20, "reps": 5}, {"weight": 30, "reps": 3}], "warmup_ramp 40 collapses")
+    eq(warmup_ramp(0), [], "warmup_ramp 0 empty")
+    eq(warmup_sets("trap_bar_deadlift", 1),
+       [{"weight": 130, "reps": 5}, {"weight": 170, "reps": 4},
+        {"weight": 220, "reps": 3}, {"weight": 270, "reps": 2}], "trap warmup wk1")
+    eq(warmup_sets("db_split_squat", 1),
+       [{"weight": 20, "reps": 5}, {"weight": 30, "reps": 3}], "db split warmup collapses")
+    tms = {"trap_bar_deadlift": [405, None, None, None]}
+    w = warmup_sets("trap_bar_deadlift", 1, tms)
+    eq(w[0]["weight"], 160, "warmup honors override")
+    check(all(s["weight"] < 405 for s in w), "warmups below working weight")
+    for lid in ("trap_bar_deadlift", "smith_squat", "axle_dl_doh", "db_bench", "sandbag"):
+        for wk in (1, 6, 11, 40):
+            working = target_weight(lid, wk)
+            ramp = warmup_sets(lid, wk)
+            for i, s in enumerate(ramp):
+                check(s["weight"] < working, f"{lid} wk{wk} warmup below working")
+                if i > 0:
+                    check(ramp[i]["weight"] > ramp[i - 1]["weight"], f"{lid} wk{wk} strictly increasing")
 
 
 def test_calendar():

@@ -48,6 +48,11 @@ def _exercise_card(item) -> rx.Component:
                 width="100%", align="center", spacing="2",
             ),
             rx.text(item["prescription"], weight="medium"),
+            rx.cond(
+                item["warmup_text"],
+                rx.text("Warm-up first: " + item["warmup_text"], size="1", color_scheme="gray"),
+                rx.fragment(),
+            ),
             rx.hstack(
                 rx.cond(item["rpe"], rx.badge(item["rpe"], variant="surface", color_scheme="gray"), rx.fragment()),
                 rx.cond(item["rest"], rx.badge(item["rest"], variant="surface", color_scheme="gray"), rx.fragment()),

@@ -122,6 +122,32 @@ def lift_trajectory(lift_id: str, overrides: Optional[TmOverrides] = None) -> di
     return {"weekly": weekly, "quarters": quarters}
 
 
+# Percent-of-working-weight warm-up ramp, fewer reps as the bar gets heavier.
+_WARMUP_STEPS = [(0.4, 5), (0.55, 4), (0.7, 3), (0.85, 2)]
+
+
+def warmup_ramp(working_weight: float, round_to: int = 10) -> list[dict]:
+    """Warm-up ramp up to a working weight. Rounds each set to the nearest 10 lb
+    (fewer plate changes), drops any set that meets/exceeds the working weight,
+    and collapses duplicate weights — so light lifts get fewer warm-up sets.
+    Faithful port of progression.ts ``warmupRamp``."""
+    out: list[dict] = []
+    last = 0
+    for pct, reps in _WARMUP_STEPS:
+        weight = mround(working_weight * pct, round_to)
+        if weight <= 0 or weight >= working_weight or weight <= last:
+            continue
+        out.append({"weight": weight, "reps": reps})
+        last = weight
+    return out
+
+
+def warmup_sets(lift_id: str, week: int, overrides: Optional[TmOverrides] = None) -> list[dict]:
+    """Warm-up ramp for a lift on a given week, from the resolved working weight
+    (honors TM overrides). Faithful port of progression.ts ``warmupSets``."""
+    return warmup_ramp(target_weight(lift_id, week, overrides or {}))
+
+
 # ---- dates (calendar dates, ISO YYYY-MM-DD) --------------------------------
 # Python date.weekday(): Monday == 0.
 _DOW_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]

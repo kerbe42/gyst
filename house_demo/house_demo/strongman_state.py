@@ -27,6 +27,7 @@ from strongman.engine import (
     quarter_of,
     resolve_tm,
     today_iso,
+    warmup_ramp,
 )
 from strongman.sessions import session_for
 
@@ -74,6 +75,7 @@ class ItemRow(TypedDict, total=False):
     exercise_id: str
     name: str
     prescription: str
+    warmup_text: str
     rpe: str
     rest: str
     notes: str
@@ -176,10 +178,14 @@ def _item_row(item: dict, logged: list[dict]) -> ItemRow:
         f"{int(s['weight_lb']) if s.get('weight_lb') is not None else '—'}×{s.get('reps') or '—'}"
         for s in my
     )
+    w = item.get("weight_lb")
+    ramp = warmup_ramp(w) if w is not None else []
+    warmup_text = " · ".join(f"{int(s['weight'])}×{s['reps']}" for s in ramp)
     return ItemRow(
         exercise_id=item["exercise_id"],
         name=item.get("name") or item["exercise_id"],
         prescription=_prescription(item),
+        warmup_text=warmup_text,
         rpe=(f"RPE {item['rpe_cap']}" if item.get("rpe_cap") else ""),
         rest=(f"rest {item['rest']}" if item.get("rest") else ""),
         notes=item.get("notes") or "",

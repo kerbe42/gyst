@@ -328,7 +328,7 @@ app = rx.App(
         rx.el.link(
             rel="apple-touch-icon", href="/icons/icon-192.png"
         ),
-        rx.el.script(src="/pwa-register.js?v=20260612b", defer=True),
+        rx.el.script(src="/pwa-register.js?v=20260612c", defer=True),
         # Barcode scanner — used by Add items to read UPC/EAN codes via the
         # camera and look the product up against Open Food Facts.
         rx.el.script(src="/barcode.js?v=20260514h", defer=True),
