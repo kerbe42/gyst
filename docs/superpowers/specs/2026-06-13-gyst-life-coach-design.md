@@ -11,7 +11,7 @@ Evolve GYST from a household-management app into a personal operating system tha
 1. **Plans** the day — training, meals, sleep, movement, work, and existing GYST calendar/chores merged into one timeline.
 2. **Times** you through it — rep tempo, rest timers, work blocks, meal windows, wind-down, lights-out.
 3. **Holds you accountable** — escalating reminders, streaks, JARVIS call-outs, and an end-of-day report card.
-4. **Enforces the routine** — during lockdown windows the phone allows **only GYST itself + emergency calls** and blocks everything else (allowlist / default-deny **kiosk**), and can cut the phone's internet. Two levers: the home firewall (pfSense/OPNsense) and an Android companion running Device-Owner **Lock Task (kiosk)** mode.
+4. **Enforces the routine** — during scheduled lockdown windows (training/focus/sleep) the phone allows only a tight allowlist (**GYST + calls/SMS + maps + emergency**) and blocks everything else (default-deny **kiosk**), and can cut the internet. Two levers: the home firewall (pfSense/OPNsense) and an Android companion running Device-Owner **Lock Task (kiosk)** mode. Outside scheduled blocks, the phone is normal.
 
 This is a **self-binding** system (Justin restricting his own device to hold a routine — a commitment device, like Freedom / Cold Turkey / Pi-hole schedules). It must always preserve a **break-glass** path: emergency calls work, and there is one logged override so he can never truly lock himself out.
 
@@ -52,7 +52,7 @@ GYST is a PWA; a browser app **cannot** block other apps or touch the network. A
 ### 4.0 Foundations (shared, build first inside Phase 0)
 - **Day Profile** — rhythm anchors, editable in GYST Settings: wake, lights-out, meal windows, work hours, training days/times, movement-break cadence (e.g., every 60 min).
 - **Routine/Timeline engine** — merges Day Profile + the day's training session (Strongman) + meals + GYST appointments into an ordered list of time-blocked events: `{start, end, type, title, detail}` where type ∈ {sleep, wake, eat, train, move, work, focus, free}.
-- **Policy model** — **allowlist / default-deny.** Each block type defines what is *allowed*; everything else is blocked. During lockdown blocks (`train`, `focus`, `sleep`) the allowlist = **{GYST, emergency dialer}** only — the phone becomes GYST-only. `free` windows allow everything. One source of truth, consumed by both actuators.
+- **Policy model** — **allowlist / default-deny.** Lockdown engages **only during scheduled blocks** (`train`, `focus`, `sleep`); the rest of the day the phone is normal. During a lockdown block the allowlist = **{GYST, emergency dialer, phone/SMS, maps/navigation}** — everything else (games, YouTube, streaming, social, general web) is blocked and the device is pinned to that set via kiosk. `free`/unscheduled time allows everything. One source of truth, consumed by both actuators; the exact app/domain identities for calls + maps get pinned down in planning.
 
 ### 4.1 In-workout timing — **Phase 1 (ship first, standalone, no enforcement)**
 - **Rest timer**: auto-starts when a set is logged; counts the prescribed rest ("3–4 min"); push/buzz at done.
@@ -123,7 +123,8 @@ Each phase is usable on its own. Recommended first build: **Phase 1** (fast, tan
 
 ## 8. Open questions (for planning, not blocking this doc)
 - Daily rhythm specifics (wake/sleep/meal/work times, training time-of-day, movement cadence).
-- Which exact distraction apps + domains to block, and which windows (training-only? all focus blocks? sleep?).
+- Exact allowlist app package IDs (which dialer/SMS + which maps app) and the emergency exception details.
+- Which block types count as "lockdown" beyond training/focus/sleep, and their default durations.
 - pfSense vs OPNsense (which is actually running) + API access.
 - Push transport for the native app (FCM vs LAN poll).
 - Streak/override rules: how punishing the override is, streak reset rules.
