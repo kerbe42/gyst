@@ -11,7 +11,7 @@ Evolve GYST from a household-management app into a personal operating system tha
 1. **Plans** the day — training, meals, sleep, movement, work, and existing GYST calendar/chores merged into one timeline.
 2. **Times** you through it — rep tempo, rest timers, work blocks, meal windows, wind-down, lights-out.
 3. **Holds you accountable** — escalating reminders, streaks, JARVIS call-outs, and an end-of-day report card.
-4. **Enforces the routine** — restricts distractions (games, YouTube, streaming, free surfing) and can cut the phone's internet during training / focus / sleep windows, via two levers: the home firewall (pfSense/OPNsense) and an Android companion app.
+4. **Enforces the routine** — during lockdown windows the phone allows **only GYST itself + emergency calls** and blocks everything else (allowlist / default-deny **kiosk**), and can cut the phone's internet. Two levers: the home firewall (pfSense/OPNsense) and an Android companion running Device-Owner **Lock Task (kiosk)** mode.
 
 This is a **self-binding** system (Justin restricting his own device to hold a routine — a commitment device, like Freedom / Cold Turkey / Pi-hole schedules). It must always preserve a **break-glass** path: emergency calls work, and there is one logged override so he can never truly lock himself out.
 
@@ -52,7 +52,7 @@ GYST is a PWA; a browser app **cannot** block other apps or touch the network. A
 ### 4.0 Foundations (shared, build first inside Phase 0)
 - **Day Profile** — rhythm anchors, editable in GYST Settings: wake, lights-out, meal windows, work hours, training days/times, movement-break cadence (e.g., every 60 min).
 - **Routine/Timeline engine** — merges Day Profile + the day's training session (Strongman) + meals + GYST appointments into an ordered list of time-blocked events: `{start, end, type, title, detail}` where type ∈ {sleep, wake, eat, train, move, work, focus, free}.
-- **Policy model** — per block type, an allow/block set referencing app packages (Android) and domain lists. E.g. `train`, `focus`, `sleep` → block {games, YouTube, Netflix, social, general web}; `free` → allow all. One source of truth, consumed by both actuators.
+- **Policy model** — **allowlist / default-deny.** Each block type defines what is *allowed*; everything else is blocked. During lockdown blocks (`train`, `focus`, `sleep`) the allowlist = **{GYST, emergency dialer}** only — the phone becomes GYST-only. `free` windows allow everything. One source of truth, consumed by both actuators.
 
 ### 4.1 In-workout timing — **Phase 1 (ship first, standalone, no enforcement)**
 - **Rest timer**: auto-starts when a set is logged; counts the prescribed rest ("3–4 min"); push/buzz at done.
@@ -80,28 +80,35 @@ GYST is a PWA; a browser app **cannot** block other apps or touch the network. A
 - OPNsense: documented REST API (`/api/firewall/alias`, `/api/firewall/filter` + apply). pfSense: `pfSense-API` package or config-write + reload.
 - Driven by the same scheduler loop that runs reminders. **Home Wi-Fi only** by nature.
 
-**4b. Android companion app — "GYST Enforcer" (everywhere).**
-- Native Kotlin app; receives the active policy + current block window from GYST (push/poll over the LAN, with local cache).
-- **Accessibility service**: detects the foreground app; during a block window, if it's a blocked app, kicks out + shows a full-screen "back to your routine" overlay.
-- **Local VPN service** (no-root): blackholes blocked domains, or **all traffic** ("kill internet"), during block windows — works on **cellular** too.
-- **Device Admin**: resists casual uninstall/disable (with break-glass).
-- Reports compliance back to GYST so accountability knows about bypasses.
-- Distribution: **sideload** (Play Store restricts Accessibility-blocker apps) — fine for personal use.
+**4b. Android companion app — "GYST Enforcer" (everywhere). The allowlist/kiosk lever.**
+- Native Kotlin app set as **Device Owner** (one-time provisioning — see below). Receives the active policy + current block window from GYST (push/poll over the LAN, with local cache so it enforces even when GYST is unreachable).
+- **Lock Task / kiosk mode** (primary): `setLockTaskPackages([GYST, Enforcer, emergency dialer])` + `startLockTask()` pins the device to *only* the allowlist during a lockdown window. Home, recents, and the status-bar shade are disabled; you cannot leave. This is the "everything except this app" enforcement. GYST is presented either as its installed PWA (WebAPK allowlisted) or hosted in a WebView inside the Enforcer, so "the one allowed app" is always GYST.
+- **Auto-release (safety-critical)**: a foreground service + alarm calls `stopLockTask()` at the window's scheduled end, with a hard watchdog timeout so a crash can never trap you. Lockdown is *time-bounded*, always.
+- **Local VPN service** (no-root): during lockdown, blackholes all traffic except GYST (LAN) — kills the internet everywhere incl. **cellular**, while keeping GYST reachable.
+- **Device Admin / Device Owner**: blocks uninstall + disabling during a window (with break-glass).
+- Reports compliance back to GYST so accountability knows about bypass attempts.
+- **Provisioning (one-time, real setup):** Device Owner is set via `adb shell dpm set-device-owner …` on a device with no accounts (typically right after a factory reset) — or QR provisioning. This is a genuine setup step, not a tap-to-install.
+- Distribution: **sideload** (Play Store restricts Accessibility/kiosk apps) — fine for personal use.
 
 ### 4.5 Whole-life merge — **Phase 5**
 - Fold existing GYST modules (chores, appointments, groceries) into the timeline so it's the *actual* day, not just training/health.
 
-## 5. Safety / break-glass (non-negotiable)
-- **Emergency calls/SMS always allowed** (never VPN-blocked; Accessibility never blocks the dialer).
-- **One override/day**: time-delayed (e.g. "wait 5 min"), **logged**, and **breaks the relevant streak** — so it costs something but you're never bricked.
-- **Sleep-window exceptions**: alarms, and a medical/emergency allowlist.
-- Nothing touches money, accounts, or anything that could endanger you. This restricts entertainment/distraction apps and general web during your own chosen focus windows — that's it.
+## 5. Safety / break-glass (non-negotiable — stricter the more total the lock)
+- **Emergency calls always allowed**: the emergency dialer is on every allowlist, and Android permits emergency calls even in Lock Task.
+- **Time-bounded by design**: every lockdown has a scheduled end; the Enforcer auto-releases (`stopLockTask`) at the boundary, backed by a watchdog timeout so a crash/hang can never trap you in kiosk. This is the single most important safety property of a GYST-only lock.
+- **One override/day**: time-delayed (e.g. "wait 5 min"), **logged**, and **breaks the relevant streak** — costs something, but you're never bricked.
+- **Recovery path**: documented escape (adb / safe-mode / window expiry) in case the app misbehaves.
+- **Sleep-window exceptions**: alarms + a medical/emergency allowlist.
+- Nothing touches money, accounts, or anything that could endanger you. It locks the phone to GYST during *your own chosen* windows — self-binding, fully reversible at the window edge.
 
 ## 6. Risks & honest caveats
-- Android Accessibility + VPN is exactly how real blockers work; reliable, but sideloaded.
-- A determined person can always escape (cellular when network-only, disabling the app, factory reset). The dual lever + Device Admin + accountability logging maximizes **friction + accountability** — it's not a literal prison, and shouldn't pretend to be.
+- **Device Owner provisioning is a one-time hurdle**: setting the Enforcer as device owner usually means a **factory reset** (back up first) or an `adb` command on an account-less device. Without device owner there's no true kiosk — only the weaker Accessibility "kick you out" approximation. This is the price of "everything except this app."
+- **Kiosk reliability is safety-critical**: the auto-release + watchdog must be bulletproof, or a bug traps you. Heavily tested; documented recovery path (adb/safe-mode/expiry).
+- Lock Task / kiosk is exactly how commercial kiosks work — reliable and well-supported on Android — but the app is sideloaded (Play Store restricts kiosk/Accessibility apps).
+- A determined person can still escape (factory reset, pull the SIM, etc.). This maximizes **friction + accountability**, not literal imprisonment — and that's the right bar for a self-binding tool.
 - pfSense/OPNsense "kill internet" = a block-all rule on the phone's IP; solid and reversible.
-- The Android companion is a genuine second app to build/maintain (Kotlin) — the largest single piece. Network actuator (4a) delivers most of the home-time value far sooner.
+- **Away-from-home**: GYST lives on the LAN, so when you're out, the Enforcer runs the schedule from its local cache and presents a local UI; reaching the full GYST remotely needs a public endpoint or VPN home (planning detail).
+- The Android companion is a genuine second app to build/maintain (Kotlin) and the largest single piece. The firewall actuator (4a) still delivers home-time value first.
 
 ## 7. Build order
 - **Phase 0** — Day Profile + Timeline engine + Policy model (foundations).
