@@ -310,6 +310,49 @@ def test_sessions():
        "shoulder safety verbatim")
 
 
+def test_sessions_uncovered_paths():
+    """Previously-untested session paths: GPP Tuesday, deload press, deload
+    carries, and the test-week Saturday events session."""
+    # GPP Tuesday (build week): kb intervals + half-sandbag carry + walk.
+    gpp = session_for(date_for(5, "tue"), OWNED)
+    ids = _ids(gpp)
+    check("kb_swing" in ids, "gpp has kb swing")
+    check("walk" in ids, "gpp has walk")
+    half = next(i for i in gpp["items"] if i["exercise_id"] == "sandbag_bear_hug_carry")
+    # Half-sandbag load = mround(TM * 0.5, 25), independent of build/deload.
+    eq(half["weight_lb"], _mround(resolve_tm("sandbag", 1, {}) * 0.5, 25), "gpp half-sandbag load")
+
+    # GPP on a DELOAD Tuesday: kb sets clamp to <=3 and rpe caps drop to <=6.
+    gpp_dl = session_for(date_for(4, "tue"), OWNED)
+    kb_dl = next(i for i in gpp_dl["items"] if i["exercise_id"] == "kb_swing")
+    check(kb_dl["sets"] <= 3, "deload gpp kb sets clamped")
+    check("<=6" in str(kb_dl["rpe_cap"]), "deload gpp rpe cap <=6")
+
+    # Deload press block (week 4 wed): single strict press, light, capped.
+    wed_dl = session_for(date_for(4, "wed"), OWNED)
+    pr = [i for i in wed_dl["items"] if i["exercise_id"] in ("axle_clean_strict_press", "axle_push_press")]
+    eq(len(pr), 1, "deload press is a single strict movement (no push press)")
+    check("<=6" in str(pr[0]["rpe_cap"]), "deload press rpe cap <=6")
+
+    # Deload carries reduce to 2 sets.
+    carry_dl = next(i for i in session_for(date_for(4, "mon"), OWNED)["items"]
+                    if i["exercise_id"] == "suitcase_carry")
+    eq(carry_dl["sets"], 2, "deload carry reduced to 2 sets")
+
+    # Test-week Saturday events: farmers at TM (max distance) + over-bar max reps.
+    sat13 = session_for(date_for(13, "sat"), OWNED)
+    check(sat13["is_test_week"], "wk13 sat is test week")
+    fc = next(i for i in sat13["items"] if i["exercise_id"] == "farmers_carry_trap_bar")
+    eq(fc["weight_lb"], _mround(resolve_tm("farmers_carry", 1, {}), 5), "test-sat farmers at TM")
+    ob = next(i for i in sat13["items"] if i["exercise_id"] == "sandbag_over_bar")
+    check(ob["weight_lb"] is not None, "test-sat over-bar has a weight")
+
+
+# Extra engine helpers used by the coverage test above.
+from strongman.engine import mround as _mround  # noqa: E402
+from strongman.engine import resolve_tm  # noqa: E402
+
+
 def main() -> int:
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for t in tests:
