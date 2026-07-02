@@ -522,6 +522,19 @@ def _delete_announcement(announcement_id):
 
 
 # ---- Strongman training + nutrition -----------------------------------------
+_ISO_DATE_RE = None
+
+
+def _sm_valid_date(value) -> bool:
+    """A hallucinated non-ISO date would write rows under a key no view ever
+    reads. Accept only YYYY-MM-DD."""
+    global _ISO_DATE_RE
+    if _ISO_DATE_RE is None:
+        import re
+        _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    return bool(value) and bool(_ISO_DATE_RE.match(str(value)))
+
+
 def _sm_today():
     from strongman import db as sm_db
     from strongman import engine as sm_engine
@@ -536,7 +549,12 @@ def _sm_today():
         "title": s["title"], "is_test_week": s["is_test_week"], "is_calibration": s["is_calibration"],
         "exercises": [
             {"id": it["exercise_id"], "name": it.get("name"), "sets": it.get("sets"),
-             "reps": it.get("reps"), "weight_lb": it.get("weight_lb"), "rpe": it.get("rpe_cap")}
+             "reps": it.get("reps"), "weight_lb": it.get("weight_lb"), "rpe": it.get("rpe_cap"),
+             # Same warm-up ramp the screen shows, so voice sessions match.
+             "warmups": [] if it.get("skip_warmup") else [
+                 {"weight": ws["weight"], "reps": ws["reps"]}
+                 for ws in sm_engine.warmups_for(it.get("lift_id"), it.get("weight_lb"))
+             ]}
             for it in s["items"]
         ],
         "recovery": s.get("recovery") or [],
@@ -544,17 +562,28 @@ def _sm_today():
 
 
 def _sm_log_set(exercise_id, weight=None, reps=None, rpe=None, sets=1, date=None):
+    from strongman import data as sm_data
     from strongman import db as sm_db
     from strongman import engine as sm_engine
     sm_db.init_db()
-    iso = date or sm_engine.today_iso()
+    # Validate the exercise id — an unknown id would insert orphan rows that no
+    # view surfaces while the tool cheerfully reports success.
+    if sm_data.get_exercise(exercise_id) is None:
+        return {"error": f"unknown exercise id '{exercise_id}'",
+                "valid_ids": [e["id"] for e in sm_data.all_exercises()]}
+    if date is not None and not _sm_valid_date(date):
+        return {"error": f"date must be YYYY-MM-DD, got '{date}'"}
+    iso = date if date is not None else sm_engine.today_iso()
     n = max(1, int(sets or 1))
-    rows = [{"set_num": i + 1,
-             "weight_lb": float(weight) if weight is not None else None,
+    rows = [{"weight_lb": float(weight) if weight is not None else None,
              "reps": int(reps) if reps is not None else None,
-             "rpe": float(rpe) if rpe is not None else None, "note": None} for i in range(n)]
-    sm_db.set_exercise_sets(iso, exercise_id, rows)
-    return {"ok": True, "date": iso, "exercise_id": exercise_id, "sets_logged": n}
+             "rpe": float(rpe) if rpe is not None else None, "note": None} for _ in range(n)]
+    # APPEND (not replace): each call adds sets so "log another set" doesn't
+    # wipe everything logged earlier that day for the exercise.
+    appended = sm_db.append_sets(iso, exercise_id, rows)
+    total = len(sm_db.list_sets(iso, exercise_id))
+    return {"ok": True, "date": iso, "exercise_id": exercise_id,
+            "sets_appended": appended, "sets_today": total}
 
 
 def _sm_macros_today():
@@ -570,6 +599,31 @@ def _sm_macros_today():
             "kcal_target": s["kcal_target"]}
 
 
+def _sm_log_meal(meal_id=None, name=None, protein_g=None, kcal=None):
+    """Log a single strongman meal by recipe id, or an ad-hoc one by name +
+    macros. Routes to the STRONGMAN nutrition tracker (meal_log), not the
+    household meal planner — so protein/kcal totals actually move."""
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    from strongman import nutrition as sm_nutrition
+    sm_db.init_db()
+    iso = sm_engine.today_iso()
+    if meal_id:
+        rec = next((r for r in sm_nutrition.meal_recipes() if r["id"] == meal_id), None)
+        if rec is None:
+            return {"error": f"unknown meal id '{meal_id}'",
+                    "valid_ids": [r["id"] for r in sm_nutrition.meal_recipes()]}
+        rid = sm_db.add_meal(iso, rec["id"], rec["name"], rec["protein_g"], rec["kcal"], 1)
+        return {"ok": True, "date": iso, "id": rid, "name": rec["name"],
+                "protein_g": rec["protein_g"], "kcal": rec["kcal"]}
+    if not name:
+        return {"error": "pass either meal_id or name (+ optional protein_g/kcal)"}
+    p = max(0.0, float(protein_g)) if protein_g is not None else 0.0
+    k = max(0.0, float(kcal)) if kcal is not None else 0.0
+    rid = sm_db.add_meal(iso, "custom", str(name), p, k, 1)
+    return {"ok": True, "date": iso, "id": rid, "name": str(name), "protein_g": p, "kcal": k}
+
+
 def _sm_log_standard_day():
     from strongman import db as sm_db
     from strongman import engine as sm_engine
@@ -577,15 +631,26 @@ def _sm_log_standard_day():
     sm_db.init_db()
     iso = sm_engine.today_iso()
     meals = sm_nutrition.fixed_template_meals()
+    # Idempotent: a model retry or a repeated ask shouldn't double-log ~197 g.
+    existing = {m.get("meal_id") for m in sm_db.list_meals(iso)}
+    template_ids = {m["id"] for m in meals}
+    if template_ids and template_ids <= existing:
+        return {"ok": True, "date": iso, "meals_logged": 0,
+                "note": "standard day already logged today"}
+    logged = 0
     for m in meals:
+        if m["id"] in existing:
+            continue
         sm_db.add_meal(iso, m["id"], m["name"], m["protein_g"], m["kcal"], 1)
-    return {"ok": True, "date": iso, "meals_logged": len(meals)}
+        logged += 1
+    return {"ok": True, "date": iso, "meals_logged": logged}
 
 
 def _sm_training_max(lift_id):
     from strongman import data as sm_data
     from strongman import db as sm_db
     from strongman import engine as sm_engine
+    sm_db.init_db()
     try:
         lift = sm_data.get_lift(lift_id)
     except KeyError:
@@ -596,13 +661,56 @@ def _sm_training_max(lift_id):
             "q3": sm_engine.resolve_tm(lift_id, 3, tms), "q4": sm_engine.resolve_tm(lift_id, 4, tms)}
 
 
+def _sm_set_training_max(lift_id, quarter, value):
+    """Set a quarter's training max — the test-week ratchet, by voice.
+    Validates the lift and clamps to a sane band so a slip of the tongue can't
+    poison the whole quarter's prescriptions."""
+    from strongman import data as sm_data
+    from strongman import db as sm_db
+    from strongman import engine as sm_engine
+    sm_db.init_db()
+    try:
+        lift = sm_data.get_lift(lift_id)
+    except KeyError:
+        return {"error": f"unknown lift {lift_id}", "valid_ids": [x["id"] for x in sm_data.all_lifts()]}
+    try:
+        q = int(quarter)
+    except (TypeError, ValueError):
+        return {"error": "quarter must be 1-4"}
+    if q not in (1, 2, 3, 4):
+        return {"error": "quarter must be 1-4"}
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return {"error": "value must be a number (lb)"}
+    if v <= 0:
+        return {"error": "training max must be positive"}
+    suggested = sm_engine.resolve_tm(lift_id, q, {})
+    lo, hi = suggested * 0.5, suggested * 2.0
+    if not (lo <= v <= hi):
+        return {"error": f"{v:g} lb is outside the sane band {lo:g}-{hi:g} for "
+                         f"{lift['name']} Q{q} (suggested ~{suggested}); refusing."}
+    rounded = sm_engine.mround(v, lift.get("round_to", 5))
+    sm_db.set_tm(lift_id, q, int(rounded))
+    return {"ok": True, "lift_id": lift_id, "quarter": q, "training_max": int(rounded)}
+
+
 def _sm_set_bodyweight(lb):
     from strongman import db as sm_db
     from strongman import engine as sm_engine
     sm_db.init_db()
+    try:
+        v = float(lb)
+    except (TypeError, ValueError):
+        return {"error": "bodyweight must be a number (lb)"}
+    if not (50 <= v <= 1000):
+        return {"error": f"{v:g} lb is not a plausible bodyweight"}
     iso = sm_engine.today_iso()
-    sm_db.set_bodyweight(iso, float(lb))
-    return {"ok": True, "date": iso, "lb": float(lb)}
+    sm_db.set_bodyweight(iso, v)
+    # ALSO update the bodyweight_lb setting so the protein target recomputes —
+    # the log alone never feeds the target and it would silently stay stale.
+    sm_db.set_setting("bodyweight_lb", int(v) if float(v).is_integer() else v)
+    return {"ok": True, "date": iso, "lb": v, "protein_target_updated": True}
 
 
 TOOLS: dict[str, dict] = {
@@ -613,7 +721,13 @@ TOOLS: dict[str, dict] = {
     },
     "strongman_log_set": {
         "fn": _sm_log_set,
-        "description": "Log completed sets for an exercise in today's strongman session. Pass the exercise id (e.g. trap_bar_deadlift), the weight, reps, optional RPE, and how many sets.",
+        "description": (
+            "APPEND completed sets for an exercise in today's strongman session "
+            "(does not overwrite sets already logged today). Pass the exercise "
+            "id (e.g. trap_bar_deadlift), the weight, reps, optional RPE, and how "
+            "many identical sets to add. Returns valid_ids if the exercise id is "
+            "unknown — never guess an id, use one from strongman_today."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -624,6 +738,42 @@ TOOLS: dict[str, dict] = {
                 "sets": {"type": "integer", "default": 1},
             },
             "required": ["exercise_id"],
+        },
+    },
+    "strongman_set_training_max": {
+        "fn": _sm_set_training_max,
+        "description": (
+            "Set a strongman lift's training max for a quarter (1-4). This is the "
+            "test-week ratchet: after a test-week heavy single, set the next "
+            "quarter's TM (~85-90% of the single). Rejects values outside a sane "
+            "band. lift_id e.g. trap_bar_deadlift, axle_press."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "lift_id": {"type": "string"},
+                "quarter": {"type": "integer"},
+                "value": {"type": "number"},
+            },
+            "required": ["lift_id", "quarter", "value"],
+        },
+    },
+    "strongman_log_meal": {
+        "fn": _sm_log_meal,
+        "description": (
+            "Log ONE meal to the strongman nutrition tracker (moves today's "
+            "protein/kcal totals). Either pass a meal_id from the recipe library, "
+            "or pass name + protein_g + kcal for an ad-hoc meal. Use this, not the "
+            "household meal planner, for strongman nutrition."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "meal_id": {"type": "string"},
+                "name": {"type": "string"},
+                "protein_g": {"type": "number"},
+                "kcal": {"type": "number"},
+            },
         },
     },
     "strongman_macros_today": {

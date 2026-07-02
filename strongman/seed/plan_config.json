@@ -20,7 +20,14 @@
       { "lb": 5, "count": 6 },
       { "lb": 2.5, "count": 4 }
     ],
-    "plate_aware_lifts": ["trap_bar_deadlift", "farmers_carry"]
+    "plate_aware_lifts": ["trap_bar_deadlift", "farmers_carry"],
+    "warmup_lifts": {
+      "trap_bar_deadlift": 54,
+      "farmers_carry": 54,
+      "axle_press": 45,
+      "axle_dl_doh": 45,
+      "smith_squat": 25
+    }
   },
   "weekly_schedule": {
     "mon": "lower",

@@ -19,9 +19,16 @@ from . import data as sm_data
 
 
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(config.STRONGMAN_DB_PATH)
+    # busy_timeout: JARVIS tool calls run on a worker thread and can write the
+    # same DB concurrently with Reflex event handlers; without this a
+    # simultaneous write raises "database is locked" instead of waiting.
+    # WAL: readers don't block the writer, so the Progress page's reads don't
+    # collide with a background meal/set log.
+    conn = sqlite3.connect(config.STRONGMAN_DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 
@@ -95,6 +102,28 @@ def init_db() -> None:
             );
             """
         )
+        _migrate(conn)
+
+
+# Bump this and add an `if version < N` block below whenever the schema
+# changes. CREATE TABLE IF NOT EXISTS covers fresh installs; this covers
+# existing installs where a new column must be ALTERed in — the sibling
+# modules (chores/inventory/appointments) all carry the same guard because a
+# fresh dev DB never reproduces the "old install, new column" break.
+_SCHEMA_VERSION = 1
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version >= _SCHEMA_VERSION:
+        return
+    # (future) example:
+    #   if version < 2:
+    #       try:
+    #           conn.execute("ALTER TABLE training_log ADD COLUMN tempo TEXT")
+    #       except sqlite3.OperationalError:
+    #           pass
+    conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
 
 
 # ---- settings (KV) ---------------------------------------------------------
@@ -266,6 +295,41 @@ def set_exercise_sets(the_date: str, exercise_id: str, sets: list[dict]) -> None
             )
 
 
+def append_sets(the_date: str, exercise_id: str, sets: list[dict]) -> int:
+    """Add sets for one exercise on a date WITHOUT deleting existing ones.
+    Continues set_num from the current max. Returns the number appended.
+
+    This is what voice/JARVIS logging must use: `set_exercise_sets` REPLACES
+    (delete-then-insert) which is correct for the UI dialog that always submits
+    the whole day's entry, but catastrophic for an append-style 'log another
+    set' command — it would wipe every set logged earlier that day.
+    """
+    if not sets:
+        return 0
+    with _cursor() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(set_num), 0) AS m FROM training_log "
+            "WHERE the_date = ? AND exercise_id = ?",
+            (the_date, exercise_id),
+        ).fetchone()
+        base = int(row["m"])
+        for i, s in enumerate(sets, start=1):
+            conn.execute(
+                "INSERT INTO training_log (the_date, exercise_id, set_num, weight_lb, reps, rpe, note) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    the_date,
+                    exercise_id,
+                    s.get("set_num") if s.get("set_num") is not None else base + i,
+                    s.get("weight_lb"),
+                    s.get("reps"),
+                    s.get("rpe"),
+                    s.get("note"),
+                ),
+            )
+        return len(sets)
+
+
 def top_sets(exercise_id: str) -> list[dict]:
     """Max logged weight per date for one exercise, oldest first (for charts)."""
     with _cursor() as conn:
@@ -322,6 +386,18 @@ def meal_totals(the_date: str) -> dict:
         return {"protein_g": row["p"], "kcal": row["k"]}
 
 
+def meal_totals_by_date() -> dict[str, dict]:
+    """{the_date: {protein_g, kcal}} for every logged day, in ONE query — for
+    the Progress page's weekly-average chart, which otherwise did an N+1
+    (one fresh connection per logged date)."""
+    with _cursor() as conn:
+        rows = conn.execute(
+            "SELECT the_date, COALESCE(SUM(protein_g), 0) AS p, COALESCE(SUM(kcal), 0) AS k "
+            "FROM meal_log GROUP BY the_date"
+        ).fetchall()
+        return {r["the_date"]: {"protein_g": r["p"], "kcal": r["k"]} for r in rows}
+
+
 # ---- daily checks ----------------------------------------------------------
 def get_checks(the_date: str) -> dict:
     with _cursor() as conn:
@@ -339,9 +415,20 @@ def get_checks(the_date: str) -> dict:
 
 
 def set_checks(the_date: str, **patch) -> None:
-    current = get_checks(the_date)
-    current.update(patch)
+    # Read-modify-write in ONE connection/transaction so two near-simultaneous
+    # updates (e.g. a water tap and a creatine toggle) can't clobber each
+    # other's unrelated fields (lost-update race).
     with _cursor() as conn:
+        row = conn.execute(
+            "SELECT water_l, creatine, flare_protocol FROM daily_checks WHERE the_date = ?",
+            (the_date,),
+        ).fetchone()
+        current = {
+            "water_l": row["water_l"] if row else 0.0,
+            "creatine": bool(row["creatine"]) if row else False,
+            "flare_protocol": bool(row["flare_protocol"]) if row else False,
+        }
+        current.update(patch)
         conn.execute(
             "INSERT INTO daily_checks (the_date, water_l, creatine, flare_protocol) "
             "VALUES (?, ?, ?, ?) "
@@ -380,3 +467,29 @@ def engine_state() -> dict:
     """The slice the engine needs: TM overrides + owned equipment."""
     s = get_settings()
     return {"tms": get_tms(), "equipment": s["equipment"]}
+
+
+# ---- reset (with backup) ---------------------------------------------------
+def reset_all(backup: bool = True) -> Optional[str]:
+    """Wipe all strongman data. Takes a timestamped copy first (unless
+    disabled) so a mis-fire is recoverable, and truncates tables in one
+    connection rather than unlinking the live file — unlink can race an open
+    JARVIS connection mid-write and leave a half-open handle. Returns the
+    backup path (or None)."""
+    import shutil
+    from datetime import datetime, timezone
+
+    path = config.STRONGMAN_DB_PATH
+    backup_path = None
+    if backup and path.exists():
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        backup_path = str(path) + f".bak-{stamp}"
+        try:
+            shutil.copy2(path, backup_path)
+        except Exception:
+            backup_path = None
+    with _cursor() as conn:
+        for tbl in ("settings", "tms", "overrides", "training_log",
+                    "meal_log", "daily_checks", "bodyweight_log"):
+            conn.execute(f"DELETE FROM {tbl}")
+    return backup_path

@@ -37,14 +37,19 @@ def _subnav() -> rx.Component:
 
 
 # ---- shared exercise card --------------------------------------------------
-def _exercise_card(item) -> rx.Component:
+def _exercise_card(item, loggable: bool = True) -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.hstack(
                 rx.cond(item["is_logged"], rx.icon("check", size=16, color="var(--green-9)"), rx.fragment()),
                 rx.heading(item["name"], size="3"),
                 rx.spacer(),
-                rx.button("Log", size="1", on_click=S.open_log(item["exercise_id"])),
+                # Log button only where the log dialog is actually mounted and
+                # bound to the right date (the Today page). On the Plan browse
+                # view it would set log_open with no dialog present (dead) and
+                # log to *today* rather than the selected day.
+                rx.button("Log", size="1", on_click=S.open_log(item["exercise_id"]))
+                if loggable else rx.fragment(),
                 width="100%", align="center", spacing="2",
             ),
             rx.text(item["prescription"], weight="medium"),
@@ -105,6 +110,8 @@ def _log_dialog() -> rx.Component:
             ),
         ),
         open=S.log_open,
+        # Let Escape, overlay-click, and Android back close the dialog.
+        on_open_change=S.set_log_open,
     )
 
 
@@ -130,7 +137,8 @@ def strongman_today_page() -> rx.Component:
                     rx.card(rx.vstack(rx.heading("Recovery", size="3"),
                                       rx.foreach(S.recovery, lambda t: rx.text("· " + t, size="2")),
                                       align="start", spacing="1"), width="100%"),
-                    rx.vstack(rx.foreach(S.today_items, _exercise_card), spacing="3", width="100%"),
+                    rx.vstack(rx.foreach(S.today_items, lambda it: _exercise_card(it, loggable=True)),
+                              spacing="3", width="100%"),
                 ),
                 rx.cond(
                     S.cal_cards,
@@ -152,8 +160,10 @@ def _checks_card() -> rx.Component:
             rx.hstack(
                 rx.text("Water ", S.water_l.to(str), " L", weight="medium"),
                 rx.spacer(),
-                rx.button("−", on_click=S.water_delta(-0.5), variant="soft", size="1"),
-                rx.button("+", on_click=S.water_delta(0.5), variant="soft", size="1"),
+                rx.button("−", on_click=S.water_delta(-0.5), variant="soft", size="1",
+                          custom_attrs={"aria-label": "Remove 0.5 litres of water"}),
+                rx.button("+", on_click=S.water_delta(0.5), variant="soft", size="1",
+                          custom_attrs={"aria-label": "Add 0.5 litres of water"}),
                 width="100%", align="center",
             ),
             rx.hstack(rx.text("Creatine (10 g)", weight="medium"), rx.spacer(),
@@ -171,9 +181,17 @@ def _checks_card() -> rx.Component:
 def _cal_card(c) -> rx.Component:
     return rx.card(
         rx.vstack(
-            rx.text("Calibration: top " + c["name"] + " set was " + c["top_label"], size="2"),
+            rx.hstack(
+                rx.icon(rx.cond(c["kind"] == "test", "trophy", "crosshair"), size=16,
+                        color="var(--amber-9)"),
+                rx.text(rx.cond(c["kind"] == "test", "Test week — set next TM", "Calibration"),
+                        weight="bold", size="2"),
+                spacing="2", align="center",
+            ),
+            rx.text(c["hint"], size="2", color_scheme="gray"),
             rx.button(
-                rx.cond(c["already_set"], "Saved ✓", "Save " + c["top_label"] + " as Q" + c["quarter"].to(str) + " TM"),
+                rx.cond(c["already_set"], "Saved ✓",
+                        "Save " + c["top_label"] + " as Q" + c["quarter"].to(str) + " TM"),
                 on_click=S.save_calibration(c["lift_id"], c["quarter"], c["top"]),
                 disabled=c["already_set"], size="2",
             ),
@@ -234,8 +252,10 @@ def _plan_detail() -> rx.Component:
         ),
         rx.cond(
             S.detail_skipped,
-            rx.input(placeholder="Reason (optional)", value=S.detail_skip_reason, on_change=S.set_skip_reason),
-            rx.vstack(rx.foreach(S.detail_items, _exercise_card), spacing="3", width="100%"),
+            rx.input(placeholder="Reason (optional)", default_value=S.detail_skip_reason,
+                     on_blur=S.set_skip_reason),
+            rx.vstack(rx.foreach(S.detail_items, lambda it: _exercise_card(it, loggable=False)),
+                      spacing="3", width="100%"),
         ),
         spacing="3", align="stretch", width="100%",
     )
@@ -250,7 +270,7 @@ def strongman_meals_page() -> rx.Component:
             rx.vstack(
                 rx.text("Protein  " + S.protein_total.to(str) + " / " + S.protein_target.to(str) + " g",
                         weight="medium"),
-                rx.progress(value=S.protein_total, max=S.protein_target),
+                rx.progress(value=S.protein_bar_value, max=S.protein_target),
                 rx.text("Calories  " + S.kcal_total.to(str) + " kcal · " + S.kcal_target_label,
                         weight="medium"),
                 spacing="2", width="100%",
@@ -295,7 +315,8 @@ def _logged_meal_row(m) -> rx.Component:
                             spacing="0", align="start"),
                   rx.spacer(),
                   rx.icon_button(rx.icon("x", size=14), on_click=S.remove_logged_meal(m["id"]),
-                                 variant="soft", color_scheme="gray", size="1"),
+                                 variant="soft", color_scheme="gray", size="1",
+                                 aria_label="Remove this meal"),
                   width="100%", align="center"),
         size="1", width="100%",
     )
@@ -599,16 +620,30 @@ def strongman_settings_page() -> rx.Component:
     return layout(body, title="Strongman — Settings")
 
 
+def _tm_field(row, q, val_var, set_var) -> rx.Component:
+    # Confirmed slot: prefill the real value (default_value) so editing it and
+    # tabbing away re-saves the same number harmlessly. Unconfirmed slot: show
+    # the derived suggestion as a PLACEHOLDER only (empty field). This is the
+    # fix for pin-on-blur: previously a derived suggestion sat as default_value,
+    # so merely focusing then leaving the field persisted the suggestion as a
+    # fake "confirmed" override and froze the whole progression chain.
+    return rx.cond(
+        set_var,
+        rx.input(default_value=val_var, on_blur=lambda v: S.set_tm_value(row["lift_id"], q, v),
+                 type="number", width="3.5rem", size="1",
+                 custom_attrs={"aria-label": row["name"] + " Q" + str(q) + " training max"}),
+        rx.input(placeholder=val_var, on_blur=lambda v: S.set_tm_value(row["lift_id"], q, v),
+                 type="number", width="3.5rem", size="1", color_scheme="gray",
+                 custom_attrs={"aria-label": row["name"] + " Q" + str(q) + " training max (suggested)"}),
+    )
+
+
 def _tm_edit_row(row) -> rx.Component:
     return rx.hstack(
         rx.text(row["name"], size="2", flex="1"),
-        rx.input(default_value=row["q1"], on_blur=lambda v: S.set_tm_value(row["lift_id"], 1, v),
-                 type="number", width="3.5rem", size="1"),
-        rx.input(default_value=row["q2"], on_blur=lambda v: S.set_tm_value(row["lift_id"], 2, v),
-                 type="number", width="3.5rem", size="1"),
-        rx.input(default_value=row["q3"], on_blur=lambda v: S.set_tm_value(row["lift_id"], 3, v),
-                 type="number", width="3.5rem", size="1"),
-        rx.input(default_value=row["q4"], on_blur=lambda v: S.set_tm_value(row["lift_id"], 4, v),
-                 type="number", width="3.5rem", size="1"),
+        _tm_field(row, 1, row["q1"], row["q1_set"]),
+        _tm_field(row, 2, row["q2"], row["q2_set"]),
+        _tm_field(row, 3, row["q3"], row["q3_set"]),
+        _tm_field(row, 4, row["q4"], row["q4_set"]),
         spacing="1", align="center", width="100%",
     )

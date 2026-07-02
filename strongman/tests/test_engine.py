@@ -42,8 +42,12 @@ _FAILS: list[str] = []
 
 
 def check(cond: bool, msg: str) -> None:
+    # Raise so pytest (which collects every test_* function individually and
+    # ignores the CLI aggregator in main()) actually fails on a bad assertion.
+    # main() catches AssertionError to aggregate for the stdlib CLI run.
     if not cond:
         _FAILS.append(msg)
+        raise AssertionError(msg)
 
 
 def eq(actual, expected, msg: str) -> None:
@@ -119,22 +123,37 @@ def test_lift_trajectory():
 
 
 def test_warmup_sets():
-    # warmup_ramp builds straight from a working weight (what the UI uses).
+    # Raw percentage ramp (unchanged): builds straight from a working weight.
     eq(warmup_ramp(315),
        [{"weight": 130, "reps": 5}, {"weight": 170, "reps": 4},
         {"weight": 220, "reps": 3}, {"weight": 270, "reps": 2}], "warmup_ramp 315")
     eq(warmup_ramp(40), [{"weight": 20, "reps": 5}, {"weight": 30, "reps": 3}], "warmup_ramp 40 collapses")
     eq(warmup_ramp(0), [], "warmup_ramp 0 empty")
+    # floor_lb drops any set at/below the empty implement (here the 50 lb set).
+    eq(warmup_ramp(120, floor_lb=55),
+       [{"weight": 70, "reps": 4}, {"weight": 80, "reps": 3}, {"weight": 100, "reps": 2}],
+       "warmup_ramp floored above the 50lb set")
+
+    # warmups_for is the routing everything uses. Plate-aware lifts route to
+    # the plated ramp; fixed implements (sandbag/dumbbell/kb/carry) get NONE.
+    from strongman.engine import warmups_for
     eq(warmup_sets("trap_bar_deadlift", 1),
-       [{"weight": 130, "reps": 5}, {"weight": 170, "reps": 4},
-        {"weight": 220, "reps": 3}, {"weight": 270, "reps": 2}], "trap warmup wk1")
-    eq(warmup_sets("db_split_squat", 1),
-       [{"weight": 20, "reps": 5}, {"weight": 30, "reps": 3}], "db split warmup collapses")
+       warmup_ramp_plated(target_weight("trap_bar_deadlift", 1), 54,
+                          data.LOADING["plates"]), "trap warmup wk1 is plated")
+    eq(warmup_sets("db_split_squat", 1), [], "db split (fixed dumbbell) gets NO ramp")
+    eq(warmup_sets("sandbag", 6), [], "sandbag (fixed fill) gets NO ramp")
+    eq(warmup_sets("kb_swing", 6), [], "kettlebell gets NO ramp")
+    # Non-plate barbell lift: percentage ramp, floored at the empty bar.
+    axle = warmup_sets("axle_press", 6)
+    check(all(s["weight"] > data.LOADING["warmup_lifts"]["axle_press"] for s in axle),
+          "axle press warmups above the empty bar")
+
     tms = {"trap_bar_deadlift": [405, None, None, None]}
     w = warmup_sets("trap_bar_deadlift", 1, tms)
-    eq(w[0]["weight"], 160, "warmup honors override")
     check(all(s["weight"] < 405 for s in w), "warmups below working weight")
-    for lid in ("trap_bar_deadlift", "smith_squat", "axle_dl_doh", "db_bench", "sandbag"):
+    # Only warmup_lifts get ramps; everything ramped is strictly increasing and
+    # loadable/below-working.
+    for lid in data.LOADING["warmup_lifts"]:
         for wk in (1, 6, 11, 40):
             working = target_weight(lid, wk)
             ramp = warmup_sets(lid, wk)
@@ -142,6 +161,8 @@ def test_warmup_sets():
                 check(s["weight"] < working, f"{lid} wk{wk} warmup below working")
                 if i > 0:
                     check(ramp[i]["weight"] > ramp[i - 1]["weight"], f"{lid} wk{wk} strictly increasing")
+    for lid in ("db_bench", "sandbag", "kb_swing", "suitcase_carry", "curl"):
+        eq(warmups_for(lid, target_weight(lid, 6)), [], f"{lid} is not a warmup lift")
 
 
 def test_warmup_ramp_plated():
@@ -292,7 +313,10 @@ def test_sessions():
 def main() -> int:
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for t in tests:
-        t()
+        try:
+            t()
+        except AssertionError:
+            pass  # already recorded in _FAILS; keep going to collect them all
     if _FAILS:
         print(f"FAILED ({len(_FAILS)}):")
         for f in _FAILS:

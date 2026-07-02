@@ -1175,6 +1175,11 @@ async def _require_write(state, module: str) -> bool:
         return bool(auth.is_authed and auth.can_write_inventory)
     if module == "chores":
         return bool(auth.is_authed and auth.can_write_chores)
+    # Strongman is single-athlete / household-shared like meals & notes: any
+    # authenticated member may log training and nutrition. (Destructive ops
+    # like a full reset gate on admin separately.)
+    if module == "strongman":
+        return bool(auth.is_authed)
     return False
 
 

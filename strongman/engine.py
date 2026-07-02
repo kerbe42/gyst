@@ -126,13 +126,16 @@ def lift_trajectory(lift_id: str, overrides: Optional[TmOverrides] = None) -> di
 _WARMUP_STEPS = [(0.4, 5), (0.55, 4), (0.7, 3), (0.85, 2)]
 
 
-def warmup_ramp(working_weight: float, round_to: int = 10) -> list[dict]:
+def warmup_ramp(working_weight: float, round_to: int = 10, floor_lb: float = 0) -> list[dict]:
     """Warm-up ramp up to a working weight. Rounds each set to the nearest 10 lb
-    (fewer plate changes), drops any set that meets/exceeds the working weight,
-    and collapses duplicate weights — so light lifts get fewer warm-up sets.
-    Faithful port of progression.ts ``warmupRamp``."""
+    (fewer plate changes), drops any set that meets/exceeds the working weight
+    or falls at/below ``floor_lb`` (the empty implement — you can't warm up
+    below the bar), and collapses duplicate weights so light lifts get fewer
+    warm-up sets. Faithful port of progression.ts ``warmupRamp`` plus the
+    empty-implement floor.
+    """
     out: list[dict] = []
-    last = 0
+    last = max(0, floor_lb)
     for pct, reps in _WARMUP_STEPS:
         weight = mround(working_weight * pct, round_to)
         if weight <= 0 or weight >= working_weight or weight <= last:
@@ -145,7 +148,33 @@ def warmup_ramp(working_weight: float, round_to: int = 10) -> list[dict]:
 def warmup_sets(lift_id: str, week: int, overrides: Optional[TmOverrides] = None) -> list[dict]:
     """Warm-up ramp for a lift on a given week, from the resolved working weight
     (honors TM overrides). Faithful port of progression.ts ``warmupSets``."""
-    return warmup_ramp(target_weight(lift_id, week, overrides or {}))
+    return warmups_for(lift_id, target_weight(lift_id, week, overrides or {}))
+
+
+def warmups_for(lift_id: Optional[str], working_weight) -> list[dict]:
+    """The single source of truth for 'what warm-up sets does this lift get?'.
+
+    - Fixed implements (sandbag, kettlebell, fixed dumbbells, hand carries) are
+      NOT in ``data.WARMUP_LIFTS`` -> no ramp (you can't progressively load a
+      fixed-fill bag or a single kettlebell).
+    - Plate-aware lifts (trap bar, farmers) -> a ramp snapped to loadable
+      plate pairs on the real bar, capped by owned plate quantity.
+    - Other barbell lifts (axle press, axle DOH deadlift, Smith squat) -> a
+      percentage ramp, floored at the empty bar so no set sits below the bar.
+
+    Shared by the Reflex UI and the JARVIS ``strongman_today`` tool so voice and
+    screen agree on the warm-up.
+    """
+    if working_weight is None or lift_id is None:
+        return []
+    if lift_id not in data.WARMUP_LIFTS:
+        return []
+    if lift_id in data.LOADING.get("plate_aware_lifts", []):
+        return warmup_ramp_plated(
+            working_weight, data.LOADING["trap_bar_lb"], data.LOADING["plates"]
+        )
+    floor = data.WARMUP_LIFTS.get(lift_id, 0)
+    return warmup_ramp(working_weight, floor_lb=floor)
 
 
 def _greedy_plates(per_side_target: float, stock: list) -> list:
@@ -176,7 +205,10 @@ def warmup_ramp_plated(working_weight: float, bar_lb: float, stock: list) -> lis
         per_side_raw = (working_weight * pct - bar_lb) / 2
         if per_side_raw <= 0:
             continue
-        per_side_target = round(per_side_raw / 5) * 5
+        # mround (ties-round-up) not Python's banker's round(), so the ramp
+        # matches the JS Math.round the port descends from and the module's
+        # own rounding convention everywhere else.
+        per_side_target = mround(per_side_raw, 5)
         if per_side_target <= 0:
             continue
         per_side = _greedy_plates(per_side_target, stock)
@@ -218,7 +250,25 @@ def iso_for_day_index(i: int) -> str:
 
 
 def today_iso(today: Optional[date] = None) -> str:
-    return (today or date.today()).isoformat()
+    """Today's calendar date as ISO YYYY-MM-DD.
+
+    Respects the household's Settings -> Appearance time zone (same source as
+    the rest of GYST) so a late-night meal or set logs against the right day —
+    a naive server-local date.today() would roll a 11pm entry into tomorrow if
+    the server runs UTC. Pass an explicit ``today`` to keep tests deterministic;
+    falls back to naive local date if zoneinfo/app_settings is unavailable.
+    """
+    if today is not None:
+        return today.isoformat()
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from app_settings import db as _sdb
+
+        return datetime.now(ZoneInfo(_sdb.get_timezone())).date().isoformat()
+    except Exception:
+        return date.today().isoformat()
 
 
 # ---- the 52-week calendar --------------------------------------------------

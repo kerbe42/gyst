@@ -21,13 +21,24 @@ if [[ ! -d "$PROD_DIR" ]]; then
     exit 1
 fi
 
+# ---- Test gate: never ship unverified engine code -------------------------
+# Stdlib-only suites, <1s. A wrong weight prescription to a solo lifter is the
+# strongman module's worst case, so block the deploy on a red suite.
+echo "==> Running strongman test suites (engine + db)"
+if ! ( cd "$DEV_DIR" && PYTHONPATH=. "$DEV_DIR/.venv/bin/python" -m strongman.tests.test_engine \
+         && PYTHONPATH=. "$DEV_DIR/.venv/bin/python" -m strongman.tests.test_db ); then
+    echo "Strongman tests FAILED — aborting deploy (prod untouched)." >&2
+    exit 1
+fi
+
 mkdir -p "$BACKUP_DIR"
 STAMP=$(date +%Y%m%d-%H%M%S)
 SNAPSHOT="$BACKUP_DIR/code-$STAMP.tgz"
 
 echo "==> Snapshotting current prod code to $SNAPSHOT"
 tar -czf "$SNAPSHOT" \
-    --exclude='.venv' --exclude='.web' --exclude='data' \
+    --exclude='.venv' --exclude='.web' \
+    --exclude="$(basename "$PROD_DIR")/data" \
     --exclude='__pycache__' \
     -C "$(dirname "$PROD_DIR")" "$(basename "$PROD_DIR")"
 
@@ -38,7 +49,7 @@ echo "==> Rsync $DEV_DIR -> $PROD_DIR (code only)"
 rsync -a --delete \
     --exclude='.venv/' \
     --exclude='.web/' \
-    --exclude='data/' \
+    --exclude='/data/' \
     --exclude='__pycache__/' \
     --exclude='*.pyc' \
     --exclude='.git/' \

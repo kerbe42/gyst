@@ -247,7 +247,7 @@ def _press_block(day: dict, st: dict) -> list:
     load = target_weight("axle_press", day["week"], st["tms"])
     sub = AXLE_SUB if not st["equipment"]["axle"] else None
 
-    def make(exercise_id, sets, reps, rpe_cap, notes=None):
+    def make(exercise_id, sets, reps, rpe_cap, notes=None, skip_warmup=False):
         item = {
             "exercise_id": exercise_id,
             "lift_id": "axle_press",
@@ -258,6 +258,9 @@ def _press_block(day: dict, st: dict) -> list:
             "rest": "3 min",
             "notes": notes,
             "substitution_note": sub,
+            # The push press runs at the SAME load right after the strict press;
+            # it shares the strict press's warm-up, so don't repeat the ramp.
+            "skip_warmup": skip_warmup,
         }
         item.update(_lib_fields(exercise_id))
         return item
@@ -278,6 +281,7 @@ def _press_block(day: dict, st: dict) -> list:
             str(push["reps"]),
             push["rpe_cap"],
             "Same load as the strict target; the legs buy the extra reps.",
+            skip_warmup=True,
         ),
     ]
 

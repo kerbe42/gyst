@@ -13,7 +13,7 @@ from typing import Optional, TypedDict
 
 import reflex as rx
 
-from house_demo.states import _require_auth
+from house_demo.states import _require_auth, _require_write
 from strongman import data as sm_data
 from strongman import db as sm_db
 from strongman import nutrition as sm_nutrition
@@ -24,11 +24,11 @@ from strongman.engine import (
     dow_of,
     iso_for_day_index,
     lift_trajectory,
+    mround as _mround,
     quarter_of,
     resolve_tm,
     today_iso,
-    warmup_ramp,
-    warmup_ramp_plated,
+    warmups_for,
 )
 from strongman.sessions import session_for
 
@@ -96,10 +96,12 @@ class CalRow(TypedDict):
     exercise_id: str
     name: str
     lift_id: str
-    quarter: int
-    top: float
+    quarter: int      # the quarter this card SAVES a TM into
+    top: float        # the value the button saves
     top_label: str
     already_set: bool
+    kind: str         # "calibration" | "test"
+    hint: str         # human explanation of what the button does
 
 
 class CalCell(TypedDict):
@@ -183,13 +185,7 @@ def _item_row(item: dict, logged: list[dict]) -> ItemRow:
         f"{int(s['weight_lb']) if s.get('weight_lb') is not None else '—'}×{s.get('reps') or '—'}"
         for s in my
     )
-    w = item.get("weight_lb")
-    if w is None:
-        ramp = []
-    elif item.get("lift_id") in sm_data.LOADING.get("plate_aware_lifts", []):
-        ramp = warmup_ramp_plated(w, sm_data.LOADING["trap_bar_lb"], sm_data.LOADING["plates"])
-    else:
-        ramp = warmup_ramp(w)
+    ramp = [] if item.get("skip_warmup") else warmups_for(item.get("lift_id"), item.get("weight_lb"))
     parts = []
     for s in ramp:
         base = f"{int(s['weight'])}×{s['reps']}"
@@ -257,6 +253,7 @@ class StrongmanState(rx.State):
 
     # ---- Meals ----
     protein_total: int = 0
+    protein_bar_value: int = 0  # min(total, target) — rx.progress rejects value>max
     kcal_total: int = 0
     protein_target: int = 0
     kcal_target_label: str = ""
@@ -389,7 +386,13 @@ class StrongmanState(rx.State):
                     f"Plan starts {_fmt_date(start)} — {days_until} "
                     f"{'day' if days_until == 1 else 'days'} out. Here's Day 1 so you can prep."
                 )
-                self._render_day(iso=iso_for_day_index(0))
+                # Render Day 1 AND point self.the_date at it, so the checks card
+                # and any logging on this pre-plan view read/write the same day
+                # the user is actually looking at (Day 1), not the off-plan date.
+                day1_iso = iso_for_day_index(0)
+                self.the_date = day1_iso
+                self._load_checks(day1_iso)
+                self._render_day(iso=day1_iso)
                 return
             self.post_plan = True
             self.header_line = "Plan complete"
@@ -412,26 +415,69 @@ class StrongmanState(rx.State):
         logged = sm_db.list_sets(iso)
         self.today_items = [_item_row(it, logged) for it in s["items"]]
         self.recovery = s.get("recovery") or []
-        self._refresh_calibration(iso, s, logged)
+        self._refresh_tm_cards(iso, s, logged)
 
-    def _refresh_calibration(self, iso: str, s: dict, logged: list[dict]):
+    def _refresh_tm_cards(self, iso: str, s: dict, logged: list[dict]):
+        """Build one-tap 'save this as your TM' cards.
+
+        - Week-1 calibration: save the logged top set as the Q1 TM (verbatim).
+        - Test weeks (13/26/39): after a heavy single is logged, suggest the
+          NEXT quarter's TM = mround(single * 0.875), clamped so it never
+          exceeds the plan's own +delta ceiling. This is the mechanism that
+          was missing — without it the TM auto-raises off the +delta chain on
+          pure inaction even after a stalled/failed test, prescribing a weight
+          the athlete just proved they can't hit for reps.
+        """
         cards: list[CalRow] = []
+        tms = sm_db.get_tms()
+        q = quarter_of(s["week"])
+
+        def top_logged(exercise_id):
+            weights = [x["weight_lb"] for x in logged
+                       if x["exercise_id"] == exercise_id and x["weight_lb"] is not None]
+            return max(weights) if weights else None
+
         if s.get("is_calibration"):
-            tms = sm_db.get_tms()
             for it in s["items"]:
                 lift_id = it.get("lift_id")
                 if not lift_id:
                     continue
-                weights = [x["weight_lb"] for x in logged
-                           if x["exercise_id"] == it["exercise_id"] and x["weight_lb"] is not None]
-                if not weights:
+                top = top_logged(it["exercise_id"])
+                if top is None:
                     continue
-                top = max(weights)
                 current = (tms.get(lift_id) or [None, None, None, None])[0]
                 cards.append(CalRow(
                     exercise_id=it["exercise_id"], name=it.get("name") or it["exercise_id"],
-                    lift_id=lift_id, quarter=quarter_of(s["week"]), top=top,
-                    top_label=_fmt_weight(top), already_set=(current == top),
+                    lift_id=lift_id, quarter=q, top=top, top_label=_fmt_weight(top),
+                    already_set=(current == top), kind="calibration",
+                    hint="Save this as your Q1 training max.",
+                ))
+        elif s.get("is_test_week") and q < 4:
+            # q == 4 is the week-52 test; there is no Q5 to write, so no card.
+            next_q = q + 1
+            for it in s["items"]:
+                lift_id = it.get("lift_id")
+                if not lift_id:
+                    continue
+                single = top_logged(it["exercise_id"])
+                if single is None:
+                    continue
+                lift = sm_data.get_lift(lift_id)
+                round_to = lift.get("round_to", 5)
+                deltas = lift.get("q_deltas") or []
+                prior_tm = resolve_tm(lift_id, q, tms)
+                # Plan ceiling for the next quarter (the default +delta step).
+                delta = deltas[q - 1] if (q - 1) < len(deltas) else 0
+                ceiling = prior_tm + delta
+                suggested = _mround(single * 0.875, round_to)
+                target = min(suggested, ceiling)  # never jump beyond the plan
+                current = (tms.get(lift_id) or [None, None, None, None])[next_q - 1]
+                cards.append(CalRow(
+                    exercise_id=it["exercise_id"], name=it.get("name") or it["exercise_id"],
+                    lift_id=lift_id, quarter=next_q, top=target, top_label=_fmt_weight(target),
+                    already_set=(current == target), kind="test",
+                    hint=(f"Test single {_fmt_weight(single)} → set Q{next_q} TM "
+                          f"to {_fmt_weight(target)} (~87.5%, capped at the plan step)."),
                 ))
         self.cal_cards = cards
 
@@ -447,13 +493,13 @@ class StrongmanState(rx.State):
         self.log_exercise_id = exercise_id
         self.log_exercise_name = item["name"]
         if existing:
-            self.log_weight = "" if existing[0]["weight_lb"] is None else str(int(existing[0]["weight_lb"]))
+            self.log_weight = _num_str(existing[0]["weight_lb"])
             self.log_reps = "" if existing[0]["reps"] is None else str(existing[0]["reps"])
             self.log_rpe = "" if existing[0]["rpe"] is None else str(existing[0]["rpe"])
             self.log_sets = str(len(existing))
             self.log_note = existing[0].get("note") or ""
         else:
-            self.log_weight = "" if raw.get("weight_lb") is None else str(int(raw["weight_lb"]))
+            self.log_weight = _num_str(raw.get("weight_lb"))
             self.log_reps = _numeric_reps(raw.get("reps"))
             self.log_rpe = ""
             self.log_sets = str(raw["sets"]) if isinstance(raw.get("sets"), int) else "1"
@@ -461,7 +507,9 @@ class StrongmanState(rx.State):
         self.log_open = True
 
     @rx.event
-    def save_log(self):
+    async def save_log(self):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to log training.")
         try:
             n = max(1, int(self.log_sets or "1"))
         except ValueError:
@@ -476,7 +524,9 @@ class StrongmanState(rx.State):
         self._refresh_today()
 
     @rx.event
-    def clear_log(self):
+    async def clear_log(self):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to edit the log.")
         sm_db.set_exercise_sets(self.the_date, self.log_exercise_id, [])
         self.log_open = False
         self._refresh_today()
@@ -486,7 +536,15 @@ class StrongmanState(rx.State):
         self.log_open = False
 
     @rx.event
-    def save_calibration(self, lift_id: str, quarter: int, top: float):
+    def set_log_open(self, value: bool):
+        # Bound to the dialog's on_open_change so Escape / overlay-click /
+        # Android-back can dismiss it (Reflex 0.9 has no implicit setter).
+        self.log_open = bool(value)
+
+    @rx.event
+    async def save_calibration(self, lift_id: str, quarter: int, top: float):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to set training maxes.")
         sm_db.set_tm(lift_id, int(quarter), int(top))
         self._refresh_today()
         return rx.toast.success(f"Saved {int(top)} lb as Q{quarter} TM.")
@@ -494,7 +552,11 @@ class StrongmanState(rx.State):
     # daily checks
     @rx.event
     def water_delta(self, delta: float):
-        sm_db.set_checks(self.the_date, water_l=max(0.0, self.water_l + delta))
+        # Read the current value fresh from the DB rather than trusting the
+        # possibly-stale self.water_l Var (which lags behind concurrent writes /
+        # a mid-flight optimistic value). A '+' must never erase logged water.
+        current = sm_db.get_checks(self.the_date)["water_l"]
+        sm_db.set_checks(self.the_date, water_l=max(0.0, current + delta))
         self._load_checks(self.the_date)
 
     @rx.event
@@ -593,6 +655,9 @@ class StrongmanState(rx.State):
         self.kcal_total = int(round(totals["kcal"]))
         s = sm_db.get_settings()
         self.protein_target = sm_nutrition.protein_target_g(s["bodyweight_lb"])
+        # rx.progress renders indeterminate when value > max; clamp so hitting
+        # (or exceeding) the target shows a full bar, not a blank pulsing one.
+        self.protein_bar_value = min(self.protein_total, self.protein_target)
         self.kcal_set = s["kcal_target"] is not None
         self.kcal_target_label = ("target not set" if s["kcal_target"] is None
                                   else f"{int(s['kcal_target'])} kcal")
@@ -615,7 +680,9 @@ class StrongmanState(rx.State):
                              for m in sm_db.list_meals(iso)]
 
     @rx.event
-    def add_recipe_meal(self, meal_id: str, mult: str = "1"):
+    async def add_recipe_meal(self, meal_id: str, mult: str = "1"):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to log meals.")
         try:
             m = float(mult)
         except ValueError:
@@ -628,14 +695,26 @@ class StrongmanState(rx.State):
         self._refresh_meals()
 
     @rx.event
-    def log_standard_day(self):
+    async def log_standard_day(self):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to log meals.")
+        # Idempotent: don't double-log the template if it's already logged today.
+        existing = {m.get("meal_id") for m in sm_db.list_meals(self.the_date)}
+        added = 0
         for m in sm_nutrition.fixed_template_meals():
+            if m["id"] in existing:
+                continue
             sm_db.add_meal(self.the_date, m["id"], m["name"], m["protein_g"], m["kcal"], 1)
+            added += 1
         self._refresh_meals()
-        return rx.toast.success("Logged the standard day.")
+        return rx.toast.success(
+            "Logged the standard day." if added else "Standard day already logged."
+        )
 
     @rx.event
-    def remove_logged_meal(self, meal_log_id: int):
+    async def remove_logged_meal(self, meal_log_id: int):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to edit meals.")
         sm_db.remove_meal(int(meal_log_id))
         self._refresh_meals()
 
@@ -648,11 +727,15 @@ class StrongmanState(rx.State):
         )
 
     @rx.event
-    def add_custom_meal(self):
+    async def add_custom_meal(self):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to log meals.")
         if not self.custom_name.strip():
             return
-        sm_db.add_meal(self.the_date, "custom", self.custom_name.strip(),
-                       _parse_num(self.custom_protein) or 0, _parse_num(self.custom_kcal) or 0, 1)
+        # Clamp macros to >= 0 so a negative can't subtract from the day's total.
+        p = max(0.0, _parse_num(self.custom_protein) or 0)
+        k = max(0.0, _parse_num(self.custom_kcal) or 0)
+        sm_db.add_meal(self.the_date, "custom", self.custom_name.strip(), p, k, 1)
         self.custom_name = ""
         self.custom_protein = ""
         self.custom_kcal = ""
@@ -759,14 +842,13 @@ class StrongmanState(rx.State):
                                for t in sm_db.top_sets(self.progress_ex)]
         else:
             self.top_series = []
-        # weekly protein average
+        # weekly protein average — one batched query, not an N+1 over dates.
         by_week: dict[int, list[float]] = {}
-        # iterate logged meal dates by scanning bodyweight? Simpler: query meal_log dates.
-        for d in _meal_dates():
+        for d, totals in sm_db.meal_totals_by_date().items():
             day = day_for_date(d)
             if not day:
                 continue
-            by_week.setdefault(day["week"], []).append(sm_db.meal_totals(d)["protein_g"])
+            by_week.setdefault(day["week"], []).append(totals["protein_g"])
         self.protein_series = [Point(x=f"W{w}", y=round(sum(v) / len(v)))
                                for w, v in sorted(by_week.items())]
         self.tm_rows = _tm_rows(sm_db.get_tms())
@@ -781,6 +863,8 @@ class StrongmanState(rx.State):
         lb = _parse_num(self.bw_input)
         if lb is None:
             return
+        if not (50 <= lb <= 1000):
+            return rx.toast.error("Enter a plausible bodyweight (50–1000 lb).")
         sm_db.set_bodyweight(today_iso(), lb)
         self.bw_input = ""
         self._refresh_progress()
@@ -804,12 +888,29 @@ class StrongmanState(rx.State):
     @rx.event
     def commit_bodyweight(self):
         v = _parse_num(self.bodyweight_input)
-        if v is not None:
-            sm_db.set_setting("bodyweight_lb", v)
+        if v is None:
+            return
+        if not (50 <= v <= 1000):
+            # Implausible — revert the field, don't collapse the protein target.
+            s = sm_db.get_settings()
+            self.bodyweight_input = str(int(s["bodyweight_lb"]))
+            return rx.toast.error("Enter a plausible bodyweight (50–1000 lb).")
+        sm_db.set_setting("bodyweight_lb", v)
 
     @rx.event
     def commit_kcal(self):
-        v = _parse_num(self.kcal_input)
+        t = (self.kcal_input or "").strip()
+        # Empty blur must NOT clobber an existing target — only the explicit
+        # Clear button clears it.
+        if t == "":
+            s = sm_db.get_settings()
+            self.kcal_input = "" if s["kcal_target"] is None else str(int(s["kcal_target"]))
+            return
+        v = _parse_num(t)
+        if v is None or v <= 0:
+            s = sm_db.get_settings()
+            self.kcal_input = "" if s["kcal_target"] is None else str(int(s["kcal_target"]))
+            return rx.toast.error("Calorie target must be a positive number.")
         sm_db.set_setting("kcal_target", v)
 
     @rx.event
@@ -828,8 +929,32 @@ class StrongmanState(rx.State):
         sm_db.set_equipment(self.equip_sandbag, self.equip_axle)
 
     @rx.event
-    def set_tm_value(self, lift_id: str, quarter: int, value: str):
-        sm_db.set_tm(lift_id, int(quarter), _parse_num(value))
+    async def set_tm_value(self, lift_id: str, quarter: int, value: str):
+        if not await _require_write(self, "strongman"):
+            return rx.toast.error("You don't have permission to change training maxes.")
+        q = int(quarter)
+        raw = _parse_num(value)
+        # Empty -> clear the override (fall back to the suggestion chain).
+        if raw is None or raw == 0:
+            sm_db.set_tm(lift_id, q, None)
+            self.settings_tm_rows = _tm_rows(sm_db.get_tms())
+            return
+        if raw < 0:
+            self.settings_tm_rows = _tm_rows(sm_db.get_tms())  # revert the field
+            return rx.toast.error("Training max must be positive.")
+        # Clamp to a sane band vs the plan's own override-free suggestion, so a
+        # fat-fingered 3150-for-315 can't silently poison the whole quarter.
+        suggested = resolve_tm(lift_id, q, {})
+        lo, hi = suggested * 0.5, suggested * 2.0
+        if not (lo <= raw <= hi):
+            self.settings_tm_rows = _tm_rows(sm_db.get_tms())
+            return rx.toast.error(
+                f"{raw:g} lb is outside the expected {int(lo)}–{int(hi)} lb range "
+                f"(suggested ~{suggested}). Not saved."
+            )
+        lift = sm_data.get_lift(lift_id)
+        rounded = int(round(raw / lift.get("round_to", 5)) * lift.get("round_to", 5))
+        sm_db.set_tm(lift_id, q, rounded)
         self.settings_tm_rows = _tm_rows(sm_db.get_tms())
 
     @rx.event
@@ -841,11 +966,21 @@ class StrongmanState(rx.State):
         self.confirm_reset = False
 
     @rx.event
-    def do_reset(self):
-        sm_db.config.STRONGMAN_DB_PATH.unlink(missing_ok=True)
+    async def do_reset(self):
+        # Destructive: gate on admin, not just login. Back the DB up first and
+        # truncate tables (never unlink the live file — that can race an open
+        # JARVIS connection).
+        redir = await _require_auth(self, admin=True)
+        if redir is not None:
+            self.confirm_reset = False
+            return rx.toast.error("Only an admin can reset strongman data.")
+        bak = sm_db.reset_all(backup=True)
         sm_db.init_db()
         self.confirm_reset = False
-        self.settings_msg = "All strongman data reset."
+        self.settings_msg = (
+            f"All strongman data reset. Backup saved to {bak}." if bak
+            else "All strongman data reset."
+        )
         return StrongmanState.on_load_settings
 
 
@@ -862,6 +997,14 @@ def _parse_num(s: str):
     if v != v or v in (float("inf"), float("-inf")):
         return None
     return int(v) if float(v).is_integer() else v
+
+
+def _num_str(v) -> str:
+    """Render a number for an input field WITHOUT truncating fractions —
+    str(int(227.5)) would silently rewrite a 227.5 lb log to 227."""
+    if v is None:
+        return ""
+    return str(int(v)) if float(v).is_integer() else str(v)
 
 
 def _recipe_row(rec: dict) -> RecipeRow:
@@ -890,9 +1033,3 @@ def _tm_rows(tms: dict) -> list[TmRow]:
             q3_set=slots[2] is not None, q4_set=slots[3] is not None,
         ))
     return rows
-
-
-def _meal_dates() -> list[str]:
-    with sm_db._cursor() as conn:
-        rows = conn.execute("SELECT DISTINCT the_date FROM meal_log").fetchall()
-        return [r["the_date"] for r in rows]
